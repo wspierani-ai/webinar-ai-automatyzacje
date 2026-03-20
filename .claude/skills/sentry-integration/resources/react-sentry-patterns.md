@@ -1,13 +1,15 @@
 # React Sentry Patterns
 
-Szczegółowe wzorce integracji Sentry z React 18 + Vite + TypeScript.
+Szczegółowe wzorce integracji Sentry z React 19 + Vite + TypeScript.
 
-> **✅ SDK v8 Ready (Stan: Grudzień 2025)**
+> **✅ SDK v10 Ready (Stan: Marzec 2026)**
 >
-> Te wzorce są zgodne z Sentry SDK v8+, który używa:
+> Te wzorce są zgodne z Sentry SDK v10+, który używa:
 > - Funkcyjnych integracji (`browserTracingIntegration()` zamiast `new BrowserTracing()`)
-> - Nowego API `startSpan()` zamiast `startTransaction()`
+> - API `startSpan()` zamiast `startTransaction()`
 > - Uproszczonej konfiguracji Session Replay
+> - `reactErrorHandler()` dla React 19 error hooków
+> - INP (Interaction to Next Paint) zamiast FID
 
 ## Table of Contents
 
@@ -28,7 +30,7 @@ Szczegółowe wzorce integracji Sentry z React 18 + Vite + TypeScript.
 npm install @sentry/react
 ```
 
-**Wymagana wersja:** `@sentry/react >= 8.0.0` (SDK v8)
+**Wymagana wersja:** `@sentry/react >= 10.0.0` (SDK v10)
 
 ---
 
@@ -113,7 +115,7 @@ export function initSentry() {
 
     // Ustawienie tagów globalnych
     Sentry.setTags({
-      app: 'piszemy-wirale',
+      app: import.meta.env.VITE_APP_NAME || 'my-app',
       version: import.meta.env.VITE_APP_VERSION || '1.0.0',
     });
   }
@@ -189,17 +191,17 @@ initSentry();
 // Komponent fallback dla błędów
 function ErrorFallback({ error, resetError }: { error: Error; resetError: () => void }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-muted p-4">
       <div className="max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">
+        <h1 className="text-2xl font-bold text-foreground mb-4">
           Coś poszło nie tak
         </h1>
-        <p className="text-gray-600 mb-6">
+        <p className="text-muted-foreground mb-6">
           Przepraszamy za niedogodności. Spróbuj odświeżyć stronę.
         </p>
         <button
           onClick={resetError}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
         >
           Spróbuj ponownie
         </button>
@@ -227,6 +229,43 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 );
 ```
+
+### React 19 Error Hooks
+
+React 19 wprowadził nowe hooki błędów w `createRoot()`. Sentry obsługuje je przez `reactErrorHandler()`.
+
+**Zaktualizowany `main.tsx` (React 19):**
+
+```typescript
+import { createRoot } from 'react-dom/client';
+import * as Sentry from '@sentry/react';
+import { initSentry } from '@/lib/sentry';
+import App from './App';
+import './index.css';
+
+initSentry();
+
+createRoot(document.getElementById('root')!, {
+  // Błędy nieprzechwycone przez ErrorBoundary
+  onUncaughtError: Sentry.reactErrorHandler((error, errorInfo) => {
+    console.warn('Uncaught error', error, errorInfo.componentStack);
+  }),
+  // Błędy przechwycone przez ErrorBoundary (dodatkowy kontekst)
+  onCaughtError: Sentry.reactErrorHandler(),
+  // Błędy z których React się regeneruje
+  onRecoverableError: Sentry.reactErrorHandler(),
+}).render(
+  <Sentry.ErrorBoundary
+    fallback={({ error, resetError }) => (
+      <ErrorFallback error={error} resetError={resetError} />
+    )}
+  >
+    <App />
+  </Sentry.ErrorBoundary>
+);
+```
+
+> **Nota:** `Sentry.ErrorBoundary` nadal jest rekomendowane jako uzupełnienie — zapewnia fallback UI. `reactErrorHandler()` przechwytuje błędy, które ErrorBoundary nie łapie (np. w event handlerach).
 
 ---
 
@@ -332,7 +371,7 @@ useEffect(() => {
 - Page loads
 - Navigation
 - API calls (fetch)
-- Web Vitals (LCP, FID, CLS)
+- Web Vitals (LCP, INP, CLS)
 
 **Manualne span dla wolnych operacji:**
 

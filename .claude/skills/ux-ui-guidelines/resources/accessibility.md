@@ -1,6 +1,6 @@
 # Dostępność (Accessibility)
 
-WCAG 2.2 AA, ARIA, nawigacja klawiaturą - standardy 2025.
+WCAG 2.2 AA (ISO/IEC 40500:2025), ARIA, nawigacja klawiaturą - standardy 2026.
 
 ---
 
@@ -16,6 +16,12 @@ WCAG 2.2 AA, ARIA, nawigacja klawiaturą - standardy 2025.
 | 2.5.8 Target Size (Minimum) | AA | Min 24x24px dla touch targets |
 | 3.2.6 Consistent Help | A | Pomoc w spójnym miejscu |
 | 3.3.7 Redundant Entry | A | Nie wymagaj ponownego wpisywania |
+
+### Status Regulacyjny (2026)
+
+- **ISO/IEC 40500:2025** — WCAG 2.2 zatwierdzony jako standard międzynarodowy (Paź 2025)
+- **EU EAA** (European Accessibility Act) — obowiązuje od 28 czerwca 2025, wymaga WCAG 2.2
+- **WCAG 3.0** — Working Draft (marzec 2026), NIE gotowy do implementacji (~2028)
 
 ---
 
@@ -75,6 +81,32 @@ function usePrefersContrast() {
     return prefersMore;
 }
 ```
+
+### forced-colors (Windows High Contrast)
+```css
+/* globals.css */
+@media (forced-colors: active) {
+    .custom-checkbox {
+        border: 2px solid ButtonText;
+    }
+    .icon-button svg {
+        fill: ButtonText;
+    }
+}
+```
+**Wsparcie:** ~93% globalnie. Ważne dla użytkowników Windows z trybem wysokiego kontrastu.
+
+### prefers-reduced-transparency
+```css
+/* globals.css - progressive enhancement */
+@media (prefers-reduced-transparency: reduce) {
+    .glass-panel {
+        backdrop-filter: none;
+        background: var(--color-background);
+    }
+}
+```
+**Wsparcie:** Tylko Chrome/Edge 118+. Stosuj jako progressive enhancement.
 
 ---
 
@@ -314,6 +346,25 @@ function SaveButton() {
 }
 ```
 
+### Nowe Atrybuty ARIA 1.3
+
+```typescript
+// aria-description — bezpośredni opis (zamiast aria-describedby dla prostych przypadków)
+<button aria-description="Usuwa element na stałe">
+    <Trash className="h-4 w-4" />
+</button>
+
+// aria-errormessage — powiązanie komunikatu błędu z polem
+<Input
+    id="email"
+    aria-invalid={!!errors.email}
+    aria-errormessage={errors.email ? 'email-error' : undefined}
+/>
+<p id="email-error" role="alert">{errors.email?.message}</p>
+```
+
+**Uwaga:** `aria-description` to uproszczenie dla przypadków gdzie `aria-describedby` wymaga dodatkowego elementu DOM. `aria-errormessage` jest semantycznie precyzyjniejsze niż `aria-describedby` dla błędów.
+
 ### role="alert" dla Błędów
 ```typescript
 {error && (
@@ -454,7 +505,7 @@ function SortableList({ items, onReorder }: Props) {
 
 ## Inert Attribute
 
-`inert` wyłącza interakcję i dostępność dla elementu i jego dzieci.
+`inert` wyłącza interakcję i dostępność dla elementu i jego dzieci. **Baseline** od IV.2023 (~94%+ globalnie) — bezpieczny w produkcji bez polyfilli.
 
 ### Modal z inert
 ```typescript
@@ -510,6 +561,46 @@ function Layout({ children }: Props) {
     );
 }
 ```
+
+---
+
+## Popover API (Natywne Popovers)
+
+Popover API (Baseline Widely Available od IV.2025) oferuje wbudowaną dostępność:
+
+### Co przeglądarka robi automatycznie
+- `aria-expanded` na trigger button
+- Focus management (powrót focusu po zamknięciu)
+- Zamknięcie przez Escape i kliknięcie poza elementem
+- Light dismiss behavior
+
+### Implementacja
+```typescript
+// Natywny popover — bez JS, z wbudowaną dostępnością
+<button popovertarget="menu-popover">Menu</button>
+<div id="menu-popover" popover>
+    <nav>
+        <a href="/settings">Ustawienia</a>
+        <a href="/help">Pomoc</a>
+    </nav>
+</div>
+
+// Tooltip pattern
+<button popovertarget="tooltip-1" popovertargetaction="toggle">
+    <Info className="h-4 w-4" />
+</button>
+<div id="tooltip-1" popover="hint" role="tooltip">
+    Dodatkowe informacje
+</div>
+```
+
+### Kiedy Popover vs Dialog
+| Popover API | `<dialog>` / Radix Dialog |
+|-------------|---------------------------|
+| Tooltips, menu, panele | Modalne okna dialogowe |
+| Non-modal (nie blokuje UI) | Wymaga interakcji użytkownika |
+| Light dismiss (klik poza) | Focus trap, overlay |
+| Wbudowany focus return | Wymaga zarządzania focusem |
 
 ---
 
@@ -639,6 +730,35 @@ function Listbox({ items, value, onChange }: Props) {
 <main id="main-content" tabIndex={-1}>
     {/* Główna zawartość */}
 </main>
+```
+
+---
+
+## Element `<search>` (HTML)
+
+Semantyczny landmark zastępujący `role="search"`:
+```typescript
+// ✅ Nowy standard (2024+)
+<search>
+    <form>
+        <Label htmlFor="q">Szukaj</Label>
+        <Input type="search" id="q" name="q" />
+        <Button type="submit">Szukaj</Button>
+    </form>
+</search>
+
+// ❌ Stary sposób
+<div role="search">
+    <form>...</form>
+</div>
+```
+
+**Wsparcie:** Chrome 118+, Firefox 118+, Safari 17+, Edge 118+.
+
+**Uwaga:** Gdy na stronie jest kilka obszarów wyszukiwania, dodaj `aria-label`:
+```typescript
+<search aria-label="Wyszukiwanie produktów">...</search>
+<search aria-label="Wyszukiwanie w dokumentacji">...</search>
 ```
 
 ---

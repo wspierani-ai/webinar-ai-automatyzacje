@@ -132,8 +132,8 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 
 // Lazy load pages
 const HomePage = lazy(() => import('@/pages/HomePage'));
-const TemplatesPage = lazy(() => import('@/pages/TemplatesPage'));
-const TemplatePage = lazy(() => import('@/pages/TemplatePage'));
+const ItemsPage = lazy(() => import('@/pages/ItemsPage'));
+const ItemPage = lazy(() => import('@/pages/ItemPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const LoginPage = lazy(() => import('@/pages/LoginPage'));
 
@@ -159,12 +159,12 @@ export function App() {
                             } />
                             <Route path="templates" element={
                                 <Suspense fallback={<LoadingOverlay />}>
-                                    <TemplatesPage />
+                                    <ItemsPage />
                                 </Suspense>
                             } />
                             <Route path="templates/:id" element={
                                 <Suspense fallback={<LoadingOverlay />}>
-                                    <TemplatePage />
+                                    <ItemPage />
                                 </Suspense>
                             } />
                             <Route path="settings" element={
@@ -263,33 +263,33 @@ navigate(ROUTES.SETTINGS);
 
 ### useParams - Parametry URL
 ```typescript
-// pages/TemplatePage.tsx
+// pages/ItemPage.tsx
 import { useParams } from 'react-router-dom';
 
-export function TemplatePage() {
+export function ItemPage() {
     const { id } = useParams<{ id: string }>();
 
     const { data: template, isLoading } = useQuery({
         queryKey: ['template', id],
-        queryFn: () => api.getTemplate(id!),
+        queryFn: () => api.getItem(id!),
         enabled: !!id,
     });
 
     if (isLoading) return <Skeleton />;
-    if (!template) return <NotFound />;
+    if (!item) return <NotFound />;
 
-    return <TemplateDetails template={template} />;
+    return <ItemDetails item={item} />;
 }
 
-export default TemplatePage;
+export default ItemPage;
 ```
 
 ### useSearchParams - Query String
 ```typescript
-// pages/TemplatesPage.tsx
+// pages/ItemsPage.tsx
 import { useSearchParams } from 'react-router-dom';
 
-export function TemplatesPage() {
+export function ItemsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
 
     // Odczyt
@@ -313,7 +313,7 @@ export function TemplatesPage() {
     // React Query z params
     const { data } = useQuery({
         queryKey: ['templates', { category, search, page }],
-        queryFn: () => api.getTemplates({ category, search, page }),
+        queryFn: () => api.getItems({ category, search, page }),
     });
 
     return (
@@ -322,7 +322,7 @@ export function TemplatesPage() {
                 category={category}
                 onCategoryChange={handleCategoryChange}
             />
-            <TemplateGrid templates={data?.items} />
+            <ItemGrid items={data?.items} />
             <Pagination
                 currentPage={page}
                 totalPages={data?.totalPages}
@@ -411,18 +411,18 @@ function SettingsNavLink({ to, children }: { to: string; children: React.ReactNo
 ```typescript
 // Po utworzeniu - przekieruj do nowego zasobu
 const mutation = useMutation({
-    mutationFn: api.createTemplate,
-    onSuccess: (newTemplate) => {
-        queryClient.invalidateQueries({ queryKey: ['templates'] });
-        navigate(ROUTES.TEMPLATE(newTemplate.id));
+    mutationFn: api.createItem,
+    onSuccess: (newItem) => {
+        queryClient.invalidateQueries({ queryKey: ['items'] });
+        navigate(ROUTES.ITEM(newItem.id));
     },
 });
 
 // Po usunięciu - przekieruj do listy
 const deleteMutation = useMutation({
-    mutationFn: api.deleteTemplate,
+    mutationFn: api.deleteItem,
     onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['templates'] });
+        queryClient.invalidateQueries({ queryKey: ['items'] });
         navigate(ROUTES.TEMPLATES, { replace: true });
     },
 });
@@ -484,7 +484,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 <Route path="templates/:id" element={
     <ErrorBoundary FallbackComponent={RouteErrorFallback}>
         <Suspense fallback={<LoadingOverlay />}>
-            <TemplatePage />
+            <ItemPage />
         </Suspense>
     </ErrorBoundary>
 } />
@@ -512,7 +512,7 @@ Custom hooks dla logiki biznesowej.
 
 ### ⚠️ Nie używaj useEffect do data fetching
 
-To jest **anty-wzorzec** w 2025:
+To jest **anty-wzorzec** w 2026:
 ```typescript
 // ❌ NIE RÓB TEGO
 function useMyFeature() {
@@ -535,25 +535,25 @@ function useMyFeature() {
 
 ### ✅ Używaj React Query
 ```typescript
-// hooks/useTemplates.ts
+// hooks/useItems.ts
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export function useTemplates(category?: string) {
+export function useItems(category?: string) {
     return useQuery({
-        queryKey: ['templates', category],
-        queryFn: () => api.getTemplates(category),
+        queryKey: ['items', category],
+        queryFn: () => api.getItems(category),
         staleTime: 5 * 60 * 1000, // 5 minut
     });
 }
 
-export function useCreateTemplate() {
+export function useCreateItem() {
     const queryClient = useQueryClient();
-    
+
     return useMutation({
-        mutationFn: api.createTemplate,
+        mutationFn: api.createItem,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['templates'] });
+            queryClient.invalidateQueries({ queryKey: ['items'] });
         },
     });
 }
@@ -622,12 +622,12 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-    getTemplates: (category?: string) => 
-        request<Template[]>(`/templates${category ? `?category=${category}` : ''}`),
-    getTemplate: (id: string) => 
-        request<Template>(`/templates/${id}`),
-    createTemplate: (data: CreateTemplateInput) =>
-        request<Template>('/templates', { method: 'POST', body: JSON.stringify(data) }),
+    getItems: (category?: string) =>
+        request<Item[]>(`/items${category ? `?category=${category}` : ''}`),
+    getItem: (id: string) =>
+        request<Item>(`/items/${id}`),
+    createItem: (data: CreateItemInput) =>
+        request<Item>('/items', { method: 'POST', body: JSON.stringify(data) }),
 };
 ```
 
@@ -678,7 +678,7 @@ export interface User {
     created_at: string;
 }
 
-export interface Template {
+export interface Item {
     id: string;
     name: string;
     category: string;
@@ -763,9 +763,9 @@ components/
 
 | Typ | Konwencja | Przykład |
 |-----|-----------|----------|
-| Komponenty | PascalCase | `TemplateCard.tsx` |
+| Komponenty | PascalCase | `ItemCard.tsx` |
 | shadcn/ui | lowercase | `button.tsx` |
-| Hooki | camelCase + `use` | `useTemplates.ts` |
+| Hooki | camelCase + `use` | `useItems.ts` |
 | Utilities | camelCase | `formatDate.ts` |
 | Typy | camelCase | `database.ts` |
 | Stałe | camelCase | `routes.ts` |
@@ -797,7 +797,7 @@ export default defineConfig({
 **Użycie:**
 ```typescript
 import { Button } from '@/components/ui/button';
-import { useTemplates } from '@/hooks/useTemplates';
+import { useItems } from '@/hooks/useItems';
 import { api } from '@/lib/api';
 ```
 

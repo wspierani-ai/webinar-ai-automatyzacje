@@ -129,6 +129,43 @@ USING (auth.uid() = user_id);
 -- Uzytkownik otrzyma tylko zmiany SWOICH ulubionych
 ```
 
+## Realtime Authorization (Public Beta)
+
+Od `supabase-js >= v2.44.0` dostępna jest autoryzacja kanałów Realtime przez RLS na tabeli `realtime.messages`.
+
+### Konfiguracja
+
+```sql
+-- Broadcast: kto może wysyłać
+CREATE POLICY "broadcast_insert"
+ON realtime.messages FOR INSERT
+TO authenticated
+WITH CHECK (
+    extension = 'broadcast'
+    AND realtime.topic() = 'room:' || (SELECT auth.uid())::text
+);
+
+-- Presence: kto może subskrybować
+CREATE POLICY "presence_select"
+ON realtime.messages FOR SELECT
+TO authenticated
+USING (
+    extension = 'presence'
+    AND realtime.topic() = 'room:' || (SELECT auth.uid())::text
+);
+```
+
+### Użycie z Klientem
+
+```typescript
+// Kanał prywatny (wymaga RLS policy)
+const channel = supabase.channel('room:' + userId, {
+    config: { private: true },
+});
+```
+
+> **Uwaga:** Realtime Authorization jest w Public Beta — API może się zmienić.
+
 ---
 
 ## Presence

@@ -259,7 +259,7 @@ export const Button = ({ className, variant, size, ...props }: ButtonProps) => (
 )}>
 ```
 
-### Container Queries (Standard 2025)
+### Container Queries (Standard 2026)
 
 Komponent reaguje na szerokość kontenera, nie ekranu - lepsze dla reużywalnych komponentów:
 ```typescript
@@ -452,7 +452,65 @@ const toggleTheme = () => {
 }
 ```
 
-**Uwaga:** View Transitions nie działa w Firefox (2025). Używaj z fallbackiem.
+**Uwaga:** View Transitions API (same-document) jest wspierane w Chrome 111+, Firefox 133+ i Safari 18+. Cross-document transitions mają ograniczone wsparcie — używaj z feature detection.
+
+---
+
+## Nowe Utility (Tailwind v4.1+)
+
+### Text Shadow
+```typescript
+<h1 className="text-shadow-sm">Subtelny cień</h1>
+<h1 className="text-shadow-md text-shadow-primary/20">Kolorowy cień</h1>
+```
+
+### Mask Utilities
+```typescript
+// Gradient mask (fade out)
+<div className="mask-linear-gradient mask-b-from-50%">
+    <img src="hero.jpg" />
+</div>
+```
+
+### @starting-style (Entry Animations)
+```css
+/* W globals.css - animacja przy pojawieniu się elementu */
+dialog[open] {
+    opacity: 1;
+    transform: scale(1);
+
+    @starting-style {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+}
+```
+```typescript
+// Tailwind v4.1+: starting variant
+<div className="starting:opacity-0 starting:scale-95 transition-all duration-300">
+    Content with entry animation
+</div>
+```
+
+### Pointer Variants
+```typescript
+// Responsywność na podstawie urządzenia wskazującego
+<button className={cn(
+    "px-4 py-2",
+    "pointer-fine:py-1.5 pointer-fine:text-sm",   // Mysz (precyzyjne)
+    "pointer-coarse:py-3 pointer-coarse:text-base", // Dotyk (grube)
+)}>
+    Adaptive Button
+</button>
+```
+
+### Font Feature Settings (v4.2+)
+```typescript
+<span className="font-feature-settings-tnum">1234567890</span>  // Tabular numbers
+<span className="font-variant-numeric-tabular-nums">$1,234.56</span>
+```
+
+---
 
 ### Reduced Motion
 ```typescript

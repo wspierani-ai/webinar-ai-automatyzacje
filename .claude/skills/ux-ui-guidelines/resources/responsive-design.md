@@ -1,6 +1,6 @@
 # Responsive Design
 
-Mobile-first, container queries, dynamic viewport units - standardy 2025.
+Mobile-first, container queries, dynamic viewport units - standardy 2026.
 
 ---
 
@@ -30,7 +30,7 @@ Styluj najpierw dla mobile, potem dodawaj breakpointy dla większych ekranów.
 
 ---
 
-## Container Queries (2025)
+## Container Queries (2026)
 
 ### Problem z Viewport Breakpoints
 
@@ -164,6 +164,15 @@ min-h-lvh
     min-height: 100dvh;
 }
 ```
+
+### Logiczne Viewport Units (Nowe)
+```css
+/* Dla layoutów niezależnych od writing-mode */
+svb / svi  /* Small viewport block/inline */
+dvb / dvi  /* Dynamic viewport block/inline */
+lvb / lvi  /* Large viewport block/inline */
+```
+Przydatne przy wsparciu RTL (right-to-left) layouts.
 
 ---
 
@@ -309,6 +318,31 @@ Gdy karty mają różną ilość contentu, elementy nie są wyrównane.
     ))}
 </div>
 ```
+
+---
+
+## CSS Anchor Positioning (Baseline Newly Available)
+
+Pozycjonowanie tooltipów, popovers i dropdown bez Popper.js/floating-ui:
+```css
+/* Anchor element */
+.trigger {
+    anchor-name: --tooltip-anchor;
+}
+
+/* Positioned element */
+.tooltip {
+    position: fixed;
+    position-anchor: --tooltip-anchor;
+    top: anchor(bottom);
+    left: anchor(center);
+    margin-top: 8px;
+}
+```
+
+**Wsparcie:** Chrome 127+, Edge 126+, Firefox 149+, Safari 26.1+.
+
+**Rekomendacja:** Stosuj jako progressive enhancement. Dla pełnego wsparcia przeglądarek nadal używaj Radix UI positioning lub floating-ui.
 
 ---
 
@@ -753,6 +787,22 @@ function FAB({ onClick }: { onClick: () => void }) {
     <Select>{/* shadcn Select */}</Select>
 </div>
 ```
+
+### Auto-resize Textarea
+```typescript
+// CSS-only auto-resize (Chrome/Edge 123+)
+<Textarea className="[field-sizing:content] min-h-[80px] max-h-[200px]" />
+
+// Fallback: JavaScript resize
+<Textarea
+    rows={3}
+    onInput={(e) => {
+        e.currentTarget.style.height = 'auto';
+        e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+    }}
+/>
+```
+**Uwaga:** `field-sizing: content` wspierane tylko w Chrome/Edge. Stosuj z fallbackiem JS.
 
 ### Sticky Elements
 ```typescript

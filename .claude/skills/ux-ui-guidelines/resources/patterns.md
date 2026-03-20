@@ -100,9 +100,9 @@ function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
 
 // Użycie
 <Breadcrumbs items={[
-    { label: 'Szablony', href: '/templates' },
-    { label: 'AI / ML', href: '/templates?category=ai' },
-    { label: 'Generator opisów' },
+    { label: 'Items', href: '/items' },
+    { label: 'Technology', href: '/items?category=technology' },
+    { label: 'Item details' },
 ]} />
 ```
 
@@ -771,6 +771,120 @@ function useOnboardingProgress<T>(key: string, initialData: T) {
     };
 
     return { data, setData, currentStep, setCurrentStep, clearProgress };
+}
+```
+
+---
+
+## Command Palette (cmdk)
+
+### shadcn/ui Command
+```typescript
+import {
+    CommandDialog,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
+
+function CommandPalette() {
+    const [open, setOpen] = useState(false);
+
+    // Ctrl+K / Cmd+K
+    useEffect(() => {
+        const down = (e: KeyboardEvent) => {
+            if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                setOpen((open) => !open);
+            }
+        };
+        document.addEventListener('keydown', down);
+        return () => document.removeEventListener('keydown', down);
+    }, []);
+
+    return (
+        <CommandDialog open={open} onOpenChange={setOpen}>
+            <CommandInput placeholder="Wpisz polecenie..." />
+            <CommandList>
+                <CommandEmpty>Brak wyników.</CommandEmpty>
+                <CommandGroup heading="Nawigacja">
+                    <CommandItem onSelect={() => navigate('/')}>
+                        <Home className="mr-2 h-4 w-4" />
+                        Strona główna
+                    </CommandItem>
+                    <CommandItem onSelect={() => navigate('/settings')}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Ustawienia
+                    </CommandItem>
+                </CommandGroup>
+                <CommandGroup heading="Akcje">
+                    <CommandItem onSelect={() => setTheme('dark')}>
+                        <Moon className="mr-2 h-4 w-4" />
+                        Tryb ciemny
+                    </CommandItem>
+                </CommandGroup>
+            </CommandList>
+        </CommandDialog>
+    );
+}
+```
+
+**Trigger button:**
+```typescript
+<Button
+    variant="outline"
+    className="w-64 justify-between text-muted-foreground"
+    onClick={() => setOpen(true)}
+>
+    Szukaj...
+    <kbd className="ml-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs">
+        <span className="text-xs">⌘</span>K
+    </kbd>
+</Button>
+```
+
+---
+
+## Drawer (Vaul)
+
+Mobile-first drawer z gesture animations:
+```typescript
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
+
+function MobileDrawer() {
+    return (
+        <Drawer>
+            <DrawerTrigger asChild>
+                <Button variant="outline">Otwórz</Button>
+            </DrawerTrigger>
+            <DrawerContent>
+                {/* Drag handle */}
+                <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+                <DrawerHeader>
+                    <DrawerTitle>Opcje</DrawerTitle>
+                </DrawerHeader>
+                <div className="p-4 pb-safe">
+                    {/* Content */}
+                </div>
+            </DrawerContent>
+        </Drawer>
+    );
+}
+```
+
+### Responsive Dialog/Drawer
+```typescript
+// Desktop: Dialog, Mobile: Drawer
+function ResponsiveModal({ children }: { children: React.ReactNode }) {
+    const isDesktop = useMediaQuery('(min-width: 768px)');
+
+    if (isDesktop) {
+        return <Dialog>{children}</Dialog>;
+    }
+
+    return <Drawer>{children}</Drawer>;
 }
 ```
 

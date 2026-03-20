@@ -108,6 +108,28 @@ export function useTheme() {
 }
 ```
 
+### CSS light-dark() — Dark Mode bez JS
+```css
+/* Natywna funkcja CSS — bez klas, bez JavaScript */
+:root {
+    color-scheme: light dark;
+}
+
+.card {
+    background: light-dark(oklch(1 0 0), oklch(0.18 0.02 260));
+    color: light-dark(oklch(0.2 0.02 260), oklch(0.95 0.01 260));
+}
+```
+
+**Kiedy `light-dark()` vs class-based:**
+| CSS `light-dark()` | Class-based (`.dark`) |
+|---------------------|----------------------|
+| Automatyczne z systemem | Pełna kontrola (toggle) |
+| Zero JavaScript | Wymaga JS dla toggle |
+| Prostsze CSS | Kompatybilne z shadcn/ui |
+
+**Rekomendacja:** Dla shadcn/ui pozostań przy class-based (`.dark`), ponieważ shadcn wymaga JS toggle. `light-dark()` przydatna dla prostych stron bez komponentów.
+
 ---
 
 ## Dlaczego OKLCH?
@@ -179,6 +201,38 @@ oklch(L C H)
 <button className="hover:bg-primary/90" />
 ```
 
+### color-mix() — Natywna Manipulacja Kolorami
+```css
+/* Baseline Widely Available — bezpieczne w produkcji */
+
+/* Rozjaśnianie/przyciemnianie */
+.hover-lighter {
+    background: color-mix(in oklch, var(--color-primary) 80%, white);
+}
+
+/* Semi-transparent */
+.overlay {
+    background: color-mix(in oklch, var(--color-primary) 30%, transparent);
+}
+
+/* Mieszanie dwóch kolorów */
+.blend {
+    color: color-mix(in oklch, var(--color-primary), var(--color-accent));
+}
+```
+
+### Relative Color Syntax (Nowe)
+```css
+/* Manipulacja komponentów koloru — cross-browser w 2026 */
+.darker-primary {
+    color: oklch(from var(--color-primary) calc(l - 0.1) c h);
+}
+
+.desaturated {
+    color: oklch(from var(--color-primary) l calc(c * 0.5) h);
+}
+```
+
 ### Status Colors
 ```typescript
 // Success
@@ -203,13 +257,13 @@ oklch(L C H)
 ```typescript
 // constants/gradients.ts
 export const CATEGORY_GRADIENTS = {
-    'AI / ML': 'from-blue-500 to-blue-600',
-    'Biznes': 'from-green-500 to-green-600',
+    'Technology': 'from-blue-500 to-blue-600',
+    'Business': 'from-green-500 to-green-600',
     'Design': 'from-purple-500 to-purple-600',
-    'HR': 'from-orange-500 to-orange-600',
-    'Sprzedaż': 'from-pink-500 to-pink-600',
-    'Medycyna': 'from-indigo-500 to-indigo-600',
-    'Technologia': 'from-red-500 to-red-600',
+    'Marketing': 'from-orange-500 to-orange-600',
+    'Sales': 'from-pink-500 to-pink-600',
+    'Education': 'from-indigo-500 to-indigo-600',
+    'Other': 'from-red-500 to-red-600',
 } as const;
 
 // Użycie

@@ -1,253 +1,6 @@
 # Common Issues
 
-Częste błędy w projekcie Next.js 16 + React 19 z przykładami.
-
----
-
-## Next.js 16 / App Router
-
-### 1. "use client" za wysoko w drzewie
-
-**Problem:** Cały poddrzewo staje się Client Component, zwiększając bundle JS.
-```typescript
-// ❌ Źle — cała strona to Client Component
-// app/dashboard/page.tsx
-"use client";
-
-import { Header } from "./Header";
-import { Stats } from "./Stats";
-import { UserList } from "./UserList";
-
-export default function DashboardPage() {
-  const [filter, setFilter] = useState("");
-  return (
-    <div>
-      <Header />
-      <Stats />
-      <input onChange={(e) => setFilter(e.target.value)} />
-      <UserList filter={filter} />
-    </div>
-  );
-}
-```
-```typescript
-// ✅ Dobrze — tylko interaktywna część to Client Component
-// app/dashboard/page.tsx (Server Component)
-import { Header } from "./Header";
-import { Stats } from "./Stats";
-import { FilteredUserList } from "./FilteredUserList";
-
-export default function DashboardPage() {
-  return (
-    <div>
-      <Header />
-      <Stats />
-      <FilteredUserList /> {/* tylko to jest "use client" */}
-    </div>
-  );
-}
-
-// app/dashboard/FilteredUserList.tsx
-"use client";
-export function FilteredUserList() {
-  const [filter, setFilter] = useState("");
-  return (
-    <>
-      <input onChange={(e) => setFilter(e.target.value)} />
-      <UserList filter={filter} />
-    </>
-  );
-}
-```
-
-### 2. Brak jawnej strategii cache
-
-**Problem:** Next.js 15+ domyślnie używa `no-store`. Brak jawnej deklaracji powoduje nieoczekiwane zachowanie.
-```typescript
-// ❌ Źle — niejawne no-store
-async function getProducts() {
-  const res = await fetch("https://api.example.com/products");
-  return res.json();
-}
-
-// ✅ Dobrze — jawna strategia
-async function getProducts() {
-  const res = await fetch("https://api.example.com/products", {
-    cache: "force-cache", // lub 'no-store' jeśli świadomie
-    next: { revalidate: 3600 }, // ISR co godzinę
-  });
-  return res.json();
-}
-```
-
-### 3. Server Action w tym samym pliku co komponent
-
-**Problem:** Ryzyko przypadkowego wycieku kodu serwerowego do klienta.
-```typescript
-// ❌ Źle — action w komponencie
-// app/users/page.tsx
-"use server";
-
-async function createUser(formData: FormData) {
-  const secret = process.env.DB_SECRET; // wyciek!
-  await db.insert(users).values({ name: formData.get("name") });
-}
-
-export default function UsersPage() {
-  return <form action={createUser}>...</form>;
-}
-```
-```typescript
-// ✅ Dobrze — action w osobnym pliku
-// app/users/actions.ts
-"use server";
-
-import { db } from "@/db";
-import { users } from "@/db/schema";
-
-export async function createUser(formData: FormData) {
-  await db.insert(users).values({ name: formData.get("name") });
-}
-
-// app/users/page.tsx
-import { createUser } from "./actions";
-
-export default function UsersPage() {
-  return <form action={createUser}>...</form>;
-}
-```
-
-### 4. Hydration Mismatch
-
-**Problem:** Server i client renderują różny HTML.
-```typescript
-// ❌ Źle — data różni się między server a client
-function Greeting() {
-  return <p>Dzisiaj jest {new Date().toLocaleDateString()}</p>;
-}
-
-// ❌ Źle — random na renderze
-function Avatar() {
-  return <div style={{ backgroundColor: `hsl(${Math.random() * 360}, 50%, 50%)` }} />;
-}
-
-// ❌ Źle — window w renderze
-function WindowSize() {
-  return <p>Szerokość: {window.innerWidth}px</p>;
-}
-```
-```typescript
-// ✅ Dobrze — useEffect dla client-only wartości
-function Greeting() {
-  const [date, setDate] = useState<string>();
-  
-  useEffect(() => {
-    setDate(new Date().toLocaleDateString());
-  }, []);
-  
-  if (!date) return <p>Ładowanie...</p>;
-  return <p>Dzisiaj jest {date}</p>;
-}
-
-// ✅ Dobrze — seed dla random lub generuj na serwerze
-function Avatar({ visitorId }: { visitorId: string }) {
-  // deterministyczny hash z ID
-  const hue = hashStringToNumber(visitorId) % 360;
-  return <div style={{ backgroundColor: `hsl(${hue}, 50%, 50%)` }} />;
-}
-
-// ✅ Dobrze — dynamic import z ssr: false
-const WindowSize = dynamic(() => import("./WindowSize"), { ssr: false });
-```
-
-### 5. Brak loading.tsx / error.tsx
-
-**Problem:** Brak Streaming UI i error boundaries.
-```
-// ❌ Źle — brak plików
-app/
-  dashboard/
-    page.tsx
-
-// ✅ Dobrze — pełna struktura
-app/
-  dashboard/
-    page.tsx
-    loading.tsx    ← Suspense fallback
-    error.tsx      ← Error boundary
-    not-found.tsx  ← 404 handling
-```
-```typescript
-// app/dashboard/loading.tsx
-export default function Loading() {
-  return <div className="animate-pulse">Ładowanie...</div>;
-}
-
-// app/dashboard/error.tsx
-"use client";
-
-export default function Error({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
-  return (
-    <div>
-      <p>Coś poszło nie tak</p>
-      <button onClick={reset}>Spróbuj ponownie</button>
-    </div>
-  );
-}
-```
-
-### 6. Synchroniczny dostęp do params/searchParams
-
-**Problem:** W Next.js 15+ propsy `params` i `searchParams` są asynchroniczne (Promise). Synchroniczny dostęp rzuca błąd w runtime.
-```typescript
-// ❌ Źle — dostęp bezpośredni (crashuje w Next.js 15+)
-export default function Page({ params }: { params: { slug: string } }) {
-  return <h1>Post: {params.slug}</h1>;
-}
-
-// ❌ Źle — destrukturyzacja bez await
-export default function Page({ params: { slug } }: Props) {
-  return <h1>Post: {slug}</h1>;
-}
-```
-```typescript
-// ✅ Dobrze — await params
-export default async function Page({ 
-  params 
-}: { 
-  params: Promise<{ slug: string }> 
-}) {
-  const { slug } = await params;
-  return <h1>Post: {slug}</h1>;
-}
-
-// ✅ Dobrze — searchParams też wymaga await
-export default async function SearchPage({ 
-  searchParams 
-}: { 
-  searchParams: Promise<{ q?: string }> 
-}) {
-  const { q } = await searchParams;
-  return <Results query={q} />;
-}
-```
-```typescript
-// ✅ Dobrze — w generateMetadata też
-export async function generateMetadata({ 
-  params 
-}: { 
-  params: Promise<{ slug: string }> 
-}) {
-  const { slug } = await params;
-  return { title: `Post: ${slug}` };
-}
-```
+Częste błędy w projekcie React 19 + TailwindCSS v4 + Supabase z przykładami.
 
 ---
 
@@ -285,7 +38,7 @@ function Input({ ref, ...props }: InputProps & { ref?: Ref<HTMLInputElement> }) 
 
 ### 3. useEffect do fetchowania danych
 
-**Problem:** W React 19 lepiej użyć `use()` lub Server Components.
+**Problem:** `useEffect` + `useState` do fetch — brak cache, dedup, retry, obsługi race conditions.
 ```typescript
 // ❌ Źle — useEffect + useState
 function UserProfile({ userId }: Props) {
@@ -307,21 +60,31 @@ function UserProfile({ userId }: Props) {
 }
 ```
 ```typescript
-// ✅ Dobrze — Server Component (preferowane)
-async function UserProfile({ userId }: Props) {
-  const user = await fetchUser(userId);
-  return <div>{user.name}</div>;
+// ✅ Dobrze — React Query (preferowane)
+function UserProfile({ userId }: Props) {
+  const { data: user, isLoading, error } = useQuery({
+    queryKey: ["users", userId],
+    queryFn: () => fetchUser(userId),
+  });
+
+  if (isLoading) return <Spinner />;
+  if (error) return <Error error={error} />;
+  return <div>{user?.name}</div>;
 }
 
-// ✅ Dobrze — Client Component z use()
-function UserProfile({ userPromise }: { userPromise: Promise<User> }) {
-  const user = use(userPromise);
+// ✅ Dobrze — useSuspenseQuery + Suspense
+function UserProfile({ userId }: Props) {
+  const { data: user } = useSuspenseQuery({
+    queryKey: ["users", userId],
+    queryFn: () => fetchUser(userId),
+  });
+
   return <div>{user.name}</div>;
 }
 
 // Użycie z Suspense
 <Suspense fallback={<Spinner />}>
-  <UserProfile userPromise={fetchUser(userId)} />
+  <UserProfile userId={userId} />
 </Suspense>
 ```
 
@@ -332,13 +95,13 @@ function UserProfile({ userPromise }: { userPromise: Promise<User> }) {
 // ❌ Źle — czekanie na mutację
 function LikeButton({ postId, likes }: Props) {
   const [isPending, startTransition] = useTransition();
-  
+
   async function handleLike() {
     startTransition(async () => {
       await likePost(postId);
     });
   }
-  
+
   return (
     <button onClick={handleLike} disabled={isPending}>
       ❤️ {likes} {isPending && "(...)"}
@@ -353,12 +116,12 @@ function LikeButton({ postId, likes }: Props) {
     likes,
     (current) => current + 1
   );
-  
+
   async function handleLike() {
     addOptimisticLike(null); // natychmiast +1
     await likePost(postId);  // w tle
   }
-  
+
   return (
     <button onClick={handleLike}>
       ❤️ {optimisticLikes}
@@ -367,9 +130,11 @@ function LikeButton({ postId, likes }: Props) {
 }
 ```
 
-### 5. Brak useFormStatus w formularzach
+> **Nota:** W kontekście React Query, optimistic updates robi się przez `useMutation({ onMutate })` z rollbackiem w `onError`. `useOptimistic` jest bardziej naturalne z native form actions.
 
-**Problem:** Manualne zarządzanie stanem loading.
+### 5. Manualne zarządzanie stanem loading w formularzach
+
+**Problem:** Manualne zarządzanie stanem loading zamiast użycia API frameworka.
 ```typescript
 // ❌ Źle — manualne śledzenie
 function SubmitButton({ isSubmitting }: { isSubmitting: boolean }) {
@@ -380,7 +145,17 @@ function SubmitButton({ isSubmitting }: { isSubmitting: boolean }) {
   );
 }
 
-// ✅ Dobrze — useFormStatus
+// ✅ Dobrze (preferowane) — React Hook Form
+function SubmitButton() {
+  const { formState: { isSubmitting } } = useFormContext();
+  return (
+    <button type="submit" disabled={isSubmitting}>
+      {isSubmitting ? "Wysyłanie..." : "Wyślij"}
+    </button>
+  );
+}
+
+// ✅ Dobrze (alternatywa) — useFormStatus dla native form actions
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
@@ -391,281 +166,215 @@ function SubmitButton() {
 }
 ```
 
+> **Nota:** W projektach z React Hook Form używaj `formState.isSubmitting`. `useFormStatus` działa z native `<form action={}>` i jest alternatywą dla prostych formularzy bez RHF.
+
 ---
 
-## Drizzle ORM
+## Supabase
 
-### 1. N+1 Query
+### 1. Brak RLS policies
 
-**Problem:** Zapytanie w pętli zamiast JOIN.
+**Problem:** Tabela bez RLS — każdy może czytać/pisać.
+```sql
+-- ❌ Źle — tabela bez RLS
+create table posts (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  author_id uuid references auth.users(id)
+);
+-- brak RLS = każdy ma pełny dostęp!
+```
+```sql
+-- ✅ Dobrze — RLS włączony z politykami
+create table posts (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  author_id uuid references auth.users(id)
+);
+
+alter table posts enable row level security;
+
+create policy "Users can read all posts"
+  on posts for select
+  to authenticated
+  using (true);
+
+create policy "Users can insert own posts"
+  on posts for insert
+  to authenticated
+  with check (auth.uid() = author_id);
+
+create policy "Users can delete own posts"
+  on posts for delete
+  to authenticated
+  using (auth.uid() = author_id);
+```
+
+### 2. Brak sprawdzenia auth przed operacją
+
+**Problem:** Zapytanie bez sprawdzenia sesji użytkownika.
 ```typescript
-// ❌ Źle — N+1
-async function getPostsWithAuthors() {
-  const posts = await db.select().from(postsTable);
-  
-  // N zapytań dla N postów!
-  for (const post of posts) {
-    post.author = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, post.authorId))
-      .get();
+// ❌ Źle — brak sprawdzenia sesji
+async function getUserPosts() {
+  const { data } = await supabase
+    .from("posts")
+    .select("*");
+  return data;
+}
+```
+```typescript
+// ✅ Dobrze — sprawdzenie auth przed operacją
+async function getUserPosts() {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    throw new Error("Unauthorized");
   }
-  
-  return posts;
-}
-```
-```typescript
-// ✅ Dobrze — relacje w jednym zapytaniu
-async function getPostsWithAuthors() {
-  return db.query.posts.findMany({
-    with: {
-      author: true,
-    },
-  });
-}
 
-// lub explicit JOIN
-async function getPostsWithAuthors() {
-  return db
-    .select({
-      post: postsTable,
-      author: usersTable,
-    })
-    .from(postsTable)
-    .leftJoin(usersTable, eq(postsTable.authorId, usersTable.id));
+  const { data, error } = await supabase
+    .from("posts")
+    .select("*")
+    .eq("author_id", user.id);
+
+  if (error) throw error;
+  return data;
 }
 ```
 
-### 2. Brak transakcji dla operacji atomowych
+### 3. Używanie service_role w kliencie
 
-**Problem:** Niespójność danych przy błędzie.
+**Problem:** Service role key w frontend — omija RLS.
 ```typescript
-// ❌ Źle — brak transakcji
-async function transferMoney(fromId: string, toId: string, amount: number) {
-  await db
-    .update(accountsTable)
-    .set({ balance: sql`balance - ${amount}` })
-    .where(eq(accountsTable.id, fromId));
-  
-  // Jeśli tu wystąpi błąd, pieniądze znikną!
-  await db
-    .update(accountsTable)
-    .set({ balance: sql`balance + ${amount}` })
-    .where(eq(accountsTable.id, toId));
-}
+// ❌ Źle — service_role w kliencie (omija RLS!)
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY // NIGDY w frontend!
+);
 ```
 ```typescript
-// ✅ Dobrze — transakcja
-async function transferMoney(fromId: string, toId: string, amount: number) {
-  await db.transaction(async (tx) => {
-    await tx
-      .update(accountsTable)
-      .set({ balance: sql`balance - ${amount}` })
-      .where(eq(accountsTable.id, fromId));
-    
-    await tx
-      .update(accountsTable)
-      .set({ balance: sql`balance + ${amount}` })
-      .where(eq(accountsTable.id, toId));
-  });
-}
+// ✅ Dobrze — anon key w kliencie (podlega RLS)
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 ```
 
-### 3. Select * zamiast konkretnych kolumn
+### 4. Brak obsługi błędów Supabase
 
-**Problem:** Pobieranie niepotrzebnych danych.
+**Problem:** Ignorowanie error z odpowiedzi Supabase.
 ```typescript
-// ❌ Źle — wszystkie kolumny
-const users = await db.select().from(usersTable);
-
-// ✅ Dobrze — tylko potrzebne
-const users = await db
-  .select({
-    id: usersTable.id,
-    name: usersTable.name,
-  })
-  .from(usersTable);
-```
-
-### 4. Brak prepared statements
-
-**Problem:** Gorsze performance przy powtarzalnych zapytaniach.
-```typescript
-// ❌ Źle — za każdym razem nowe zapytanie
+// ❌ Źle — ignorowanie error
 async function getUser(id: string) {
-  return db.select().from(usersTable).where(eq(usersTable.id, id)).get();
+  const { data } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", id)
+    .single();
+  return data; // może być null przy błędzie!
 }
 ```
 ```typescript
-// ✅ Dobrze — prepared statement
-const getUserStmt = db
-  .select()
-  .from(usersTable)
-  .where(eq(usersTable.id, sql.placeholder("id")))
-  .prepare();
-
+// ✅ Dobrze — sprawdzenie error
 async function getUser(id: string) {
-  return getUserStmt.get({ id });
-}
-```
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", id)
+    .single();
 
-### 5. Brak batchowania zapytań (LibSQL/Turso)
-
-**Problem:** Przy SQLite przez HTTP (LibSQL/Turso), każde zapytanie to osobny request sieciowy. Sekwencyjne inserty to "performance killer".
-```typescript
-// ❌ Źle — 3 requesty HTTP
-async function createUsers(users: NewUser[]) {
-  await db.insert(usersTable).values(users[0]);
-  await db.insert(usersTable).values(users[1]);
-  await db.insert(usersTable).values(users[2]);
-}
-
-// ❌ Źle — N requestów w pętli
-async function createUsers(users: NewUser[]) {
-  for (const user of users) {
-    await db.insert(usersTable).values(user);
+  if (error) {
+    throw new Error(`Failed to fetch user: ${error.message}`);
   }
+
+  return data;
+}
+```
+
+---
+
+## Sentry
+
+### 1. Połykanie błędów bez Sentry
+
+**Problem:** Błędy znikają w pustym catch lub trafiają tylko do konsoli.
+```typescript
+// ❌ Źle — pusty catch
+try {
+  await processPayment(orderId);
+} catch (e) {
+  // cicho połknięty błąd
+}
+
+// ❌ Źle — tylko console.error
+try {
+  await processPayment(orderId);
+} catch (e) {
+  console.error("Payment failed", e); // zniknie w produkcji
 }
 ```
 ```typescript
-// ✅ Dobrze — 1 request (batch)
-async function createUsers(users: NewUser[]) {
-  await db.batch([
-    db.insert(usersTable).values(users[0]),
-    db.insert(usersTable).values(users[1]),
-    db.insert(usersTable).values(users[2]),
-  ]);
-}
+// ✅ Dobrze — logowanie + Sentry
+import * as Sentry from "@sentry/react";
+import { logger } from "@/lib/logger";
 
-// ✅ Dobrze — dynamiczny batch
-async function createUsers(users: NewUser[]) {
-  const queries = users.map(user => 
-    db.insert(usersTable).values(user)
-  );
-  await db.batch(queries);
-}
-
-// ✅ Dobrze — batch z różnymi operacjami
-async function setupUser(user: NewUser, settings: NewSettings) {
-  await db.batch([
-    db.insert(usersTable).values(user),
-    db.insert(settingsTable).values(settings),
-    db.update(statsTable)
-      .set({ userCount: sql`user_count + 1` })
-      .where(eq(statsTable.id, 'global')),
-  ]);
+try {
+  await processPayment(orderId);
+} catch (e) {
+  logger.error("Payment failed", { orderId, error: e });
+  Sentry.captureException(e, {
+    tags: { module: "payments" },
+    extra: { orderId },
+  });
+  throw e; // re-throw jeśli caller powinien wiedzieć
 }
 ```
+
+### 2. Wrażliwe dane w kontekście Sentry
+
+**Problem:** Tokeny i hasła w danych wysyłanych do Sentry.
 ```typescript
-// 💡 Kiedy batch vs transaction?
-// - batch: wiele niezależnych operacji (wydajność)
-// - transaction: operacje zależne, wymaga rollback przy błędzie
+// ❌ Źle — wrażliwe dane w Sentry
+Sentry.setContext("user", {
+  id: user.id,
+  email: user.email,
+  token: user.accessToken,     // wyciek tokenu!
+  password: formData.password, // wyciek hasła!
+});
 
-// Batch — OK jeśli częściowy sukces jest akceptowalny
-await db.batch([insertA, insertB, insertC]);
-
-// Transaction — gdy wszystko albo nic
-await db.transaction(async (tx) => {
-  await tx.insert(...);
-  await tx.update(...); // używa wyniku insert
+Sentry.captureException(error, {
+  extra: {
+    request: { headers: req.headers }, // może zawierać Authorization
+  },
 });
 ```
-
----
-
-## SWR
-
-### 1. Brak mutate po zmianach
-
-**Problem:** Stale data po mutacji.
 ```typescript
-// ❌ Źle — brak revalidacji
-function UserProfile() {
-  const { data: user } = useSWR("/api/user", fetcher);
-  
-  async function updateName(name: string) {
-    await fetch("/api/user", {
-      method: "PATCH",
-      body: JSON.stringify({ name }),
-    });
-    // UI pokazuje stare dane!
-  }
-}
-```
-```typescript
-// ✅ Dobrze — mutate po zmianie
-function UserProfile() {
-  const { data: user, mutate } = useSWR("/api/user", fetcher);
-  
-  async function updateName(name: string) {
-    await fetch("/api/user", {
-      method: "PATCH",
-      body: JSON.stringify({ name }),
-    });
-    mutate(); // revalidate
-  }
-}
+// ✅ Dobrze — tylko bezpieczne dane
+Sentry.setUser({
+  id: user.id,
+});
 
-// ✅ Jeszcze lepiej — optimistic update
-async function updateName(name: string) {
-  mutate(
-    async (currentUser) => {
-      await fetch("/api/user", {
-        method: "PATCH",
-        body: JSON.stringify({ name }),
-      });
-      return { ...currentUser, name };
-    },
-    { optimisticData: { ...user, name } }
-  );
-}
-```
-
-### 2. Niespójne klucze SWR
-
-**Problem:** Brak deduplikacji, cache miss.
-```typescript
-// ❌ Źle — różne formaty klucza
-useSWR(`/api/users/${id}`, fetcher);
-useSWR(`/api/users/${id}/`, fetcher);  // trailing slash
-useSWR(["user", id], fetcher);          // array format
-
-// ✅ Dobrze — spójny format
-const userKey = (id: string) => `/api/users/${id}`;
-useSWR(userKey(id), fetcher);
-```
-
-### 3. Brak obsługi stanów
-
-**Problem:** Brak loading/error UI.
-```typescript
-// ❌ Źle — tylko happy path
-function Users() {
-  const { data } = useSWR("/api/users", fetcher);
-  return <ul>{data?.map((u) => <li key={u.id}>{u.name}</li>)}</ul>;
-}
-```
-```typescript
-// ✅ Dobrze — wszystkie stany
-function Users() {
-  const { data, error, isLoading } = useSWR("/api/users", fetcher);
-  
-  if (isLoading) return <Skeleton />;
-  if (error) return <Error message="Nie udało się załadować użytkowników" />;
-  if (!data?.length) return <Empty message="Brak użytkowników" />;
-  
-  return <ul>{data.map((u) => <li key={u.id}>{u.name}</li>)}</ul>;
-}
+Sentry.captureException(error, {
+  tags: {
+    provider: user.provider,
+    module: "auth",
+  },
+  extra: {
+    userId: user.id,
+    action: "login",
+  },
+});
 ```
 
 ---
 
 ## Tailwind CSS 4
 
-### 1. Używanie @apply
+### 1. Nadużywanie @apply
 
-**Problem:** Trudniejsze do utrzymania, gorsze tree-shaking.
+**Problem:** Trudniejsze do utrzymania, gorsze tree-shaking. `@apply` jest akceptowalne w komponentach shadcn/ui, ale unikaj w kodzie aplikacyjnym.
 ```css
 /* ❌ Źle — @apply w CSS */
 .btn-primary {
@@ -750,6 +459,8 @@ function Button({ variant = "primary", children }: Props) {
 </Dialog.Portal>
 ```
 
+> **Nota:** Komponenty shadcn/ui (Dialog, Popover, DropdownMenu) automatycznie używają Portal. Ten issue dotyczy raw Radix UI.
+
 ### 3. Niespójne rozmiary ikon
 
 **Problem:** Ikony różnej wielkości.
@@ -776,15 +487,13 @@ function Icon({ icon: IconComponent, size = 20 }: Props) {
 
 ## Bezpieczeństwo
 
-### 1. Brak walidacji w Server Actions
+### 1. Brak walidacji danych wejściowych
 
 **Problem:** Niezaufany input trafia do bazy.
 ```typescript
 // ❌ Źle — brak walidacji
-"use server";
-
-export async function createPost(formData: FormData) {
-  await db.insert(posts).values({
+async function createPost(formData: FormData) {
+  const { error } = await supabase.from("posts").insert({
     title: formData.get("title") as string, // może być cokolwiek!
     content: formData.get("content") as string,
   });
@@ -792,8 +501,6 @@ export async function createPost(formData: FormData) {
 ```
 ```typescript
 // ✅ Dobrze — walidacja Zod
-"use server";
-
 import { z } from "zod";
 
 const createPostSchema = z.object({
@@ -801,17 +508,18 @@ const createPostSchema = z.object({
   content: z.string().min(1).max(10000),
 });
 
-export async function createPost(formData: FormData) {
+async function createPost(formData: FormData) {
   const result = createPostSchema.safeParse({
     title: formData.get("title"),
     content: formData.get("content"),
   });
-  
+
   if (!result.success) {
     return { error: result.error.flatten() };
   }
-  
-  await db.insert(posts).values(result.data);
+
+  const { error } = await supabase.from("posts").insert(result.data);
+  if (error) throw error;
 }
 ```
 
@@ -819,59 +527,68 @@ export async function createPost(formData: FormData) {
 
 **Problem:** Wrażliwe dane trafiają do klienta.
 ```typescript
-// ❌ Źle — cały obiekt user
-async function UserProfile({ userId }: Props) {
-  const user = await db.select().from(users).where(eq(users.id, userId)).get();
-  // user zawiera hashedPassword, email, etc.!
-  return <ClientComponent user={user} />;
+// ❌ Źle — cały obiekt user (RLS nie filtruje kolumn!)
+async function getUserProfile(userId: string) {
+  const { data: user } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", userId)
+    .single();
+  // user może zawierać wrażliwe kolumny!
+  return user;
 }
 ```
 ```typescript
 // ✅ Dobrze — tylko publiczne dane
-async function UserProfile({ userId }: Props) {
-  const user = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      avatar: users.avatar,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .get();
-  
-  return <ClientComponent user={user} />;
+async function getUserProfile(userId: string) {
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("id, name, avatar")
+    .eq("id", userId)
+    .single();
+
+  if (error) throw error;
+  return user;
 }
 ```
 
-### 3. Brak sprawdzenia uprawnień
+### 3. Brak sprawdzenia uprawnień (poleganie tylko na RLS)
 
-**Problem:** Każdy może wykonać akcję.
+**Problem:** RLS chroni bazę, ale logika aplikacji powinna też walidować uprawnienia.
 ```typescript
-// ❌ Źle — brak auth check
-"use server";
-
-export async function deletePost(postId: string) {
-  await db.delete(posts).where(eq(posts.id, postId));
+// ❌ Źle — brak auth check w aplikacji
+async function deletePost(postId: string) {
+  const { error } = await supabase
+    .from("posts")
+    .delete()
+    .eq("id", postId);
+  // RLS może odrzucić, ale brak informacji dla użytkownika
 }
 ```
 ```typescript
-// ✅ Dobrze — sprawdzenie uprawnień
-"use server";
-
-import { auth } from "@/lib/auth";
-
-export async function deletePost(postId: string) {
-  const session = await auth();
-  if (!session?.user) {
+// ✅ Dobrze — sprawdzenie uprawnień + RLS jako druga warstwa
+async function deletePost(postId: string) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
     throw new Error("Unauthorized");
   }
-  
-  const post = await db.select().from(posts).where(eq(posts.id, postId)).get();
-  if (post?.authorId !== session.user.id) {
+
+  const { data: post } = await supabase
+    .from("posts")
+    .select("author_id")
+    .eq("id", postId)
+    .single();
+
+  if (post?.author_id !== user.id) {
     throw new Error("Forbidden");
   }
-  
-  await db.delete(posts).where(eq(posts.id, postId));
+
+  const { error } = await supabase
+    .from("posts")
+    .delete()
+    .eq("id", postId);
+
+  if (error) throw error;
 }
 ```
 
@@ -909,6 +626,411 @@ function processData(data: unknown) {
   throw new Error("Invalid data format");
 }
 ```
+
+---
+
+## React Query
+
+### 1. Brak invalidateQueries po mutacji
+
+**Problem:** Stale dane po zapisie — UI pokazuje nieaktualne dane.
+```typescript
+// ❌ Źle — brak invalidacji po mutacji
+const mutation = useMutation({
+  mutationFn: (data: CreatePostInput) => createPost(data),
+  onSuccess: () => {
+    toast.success("Post utworzony!");
+    // dane w liście są stale!
+  },
+});
+```
+```typescript
+// ✅ Dobrze — invalidacja powiązanych queries
+const queryClient = useQueryClient();
+
+const mutation = useMutation({
+  mutationFn: (data: CreatePostInput) => createPost(data),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["posts"] });
+    toast.success("Post utworzony!");
+  },
+});
+```
+
+### 2. useEffect + fetch zamiast useQuery
+
+**Problem:** Brak cache, dedup, retry, background refetch.
+```typescript
+// ❌ Źle — manualne fetchowanie
+function PostList() {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPosts().then(setPosts).finally(() => setLoading(false));
+  }, []);
+
+  // brak obsługi error, brak retry, brak cache
+}
+```
+```typescript
+// ✅ Dobrze — useQuery
+function PostList() {
+  const { data: posts, isLoading, error } = useQuery({
+    queryKey: ["posts"],
+    queryFn: fetchPosts,
+  });
+
+  if (isLoading) return <PostListSkeleton />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!posts?.length) return <EmptyState message="Brak postów" />;
+
+  return posts.map((post) => <PostCard key={post.id} post={post} />);
+}
+```
+
+### 3. Brak obsługi stanów loading/error/empty
+
+**Problem:** Komponent zakłada że dane zawsze istnieją.
+```typescript
+// ❌ Źle — brak obsługi stanów
+function UserProfile({ userId }: Props) {
+  const { data: user } = useQuery({
+    queryKey: ["users", userId],
+    queryFn: () => fetchUser(userId),
+  });
+
+  return <div>{user.name}</div>; // crash gdy user undefined!
+}
+```
+```typescript
+// ✅ Dobrze — pełna obsługa stanów
+function UserProfile({ userId }: Props) {
+  const { data: user, isLoading, error } = useQuery({
+    queryKey: ["users", userId],
+    queryFn: () => fetchUser(userId),
+  });
+
+  if (isLoading) return <ProfileSkeleton />;
+  if (error) return <ErrorMessage error={error} />;
+  if (!user) return <NotFound message="Użytkownik nie znaleziony" />;
+
+  return <div>{user.name}</div>;
+}
+```
+
+---
+
+## React Hook Form + Zod
+
+### 1. Manualna walidacja zamiast zodResolver
+
+**Problem:** Duplikacja logiki walidacji, niespójne komunikaty błędów.
+```typescript
+// ❌ Źle — manualna walidacja
+function ContactForm() {
+  const { register, handleSubmit, setError } = useForm();
+
+  const onSubmit = (data: any) => {
+    if (!data.email.includes("@")) {
+      setError("email", { message: "Nieprawidłowy email" });
+      return;
+    }
+    if (data.name.length < 2) {
+      setError("name", { message: "Imię za krótkie" });
+      return;
+    }
+    // ...
+  };
+}
+```
+```typescript
+// ✅ Dobrze — zodResolver
+import { zodResolver } from "@hookform/resolvers/zod";
+
+const contactSchema = z.object({
+  name: z.string().min(2, "Imię musi mieć min. 2 znaki"),
+  email: z.string().email("Nieprawidłowy email"),
+  message: z.string().min(10, "Wiadomość musi mieć min. 10 znaków"),
+});
+
+type ContactFormData = z.infer<typeof contactSchema>;
+
+function ContactForm() {
+  const form = useForm<ContactFormData>({
+    resolver: zodResolver(contactSchema),
+  });
+
+  const onSubmit = (data: ContactFormData) => {
+    // data jest już zwalidowane i typowane
+  };
+}
+```
+
+### 2. Brak obsługi błędów serwera w formularzu
+
+**Problem:** Błędy API nie są mapowane na pola formularza.
+```typescript
+// ❌ Źle — brak mapowania błędów API
+const onSubmit = async (data: FormData) => {
+  try {
+    await createUser(data);
+  } catch (e) {
+    toast.error("Coś poszło nie tak"); // generyczny komunikat
+  }
+};
+```
+```typescript
+// ✅ Dobrze — mapowanie błędów API na pola
+const onSubmit = async (data: FormData) => {
+  try {
+    await createUser(data);
+    toast.success("Użytkownik utworzony!");
+  } catch (e) {
+    if (e instanceof ApiError && e.fieldErrors) {
+      // mapowanie błędów serwera na pola formularza
+      for (const [field, message] of Object.entries(e.fieldErrors)) {
+        form.setError(field as keyof FormData, { message });
+      }
+    } else {
+      form.setError("root", {
+        message: "Nie udało się zapisać. Spróbuj ponownie.",
+      });
+    }
+  }
+};
+```
+
+---
+
+## Race Conditions w React
+
+### 1. useEffect bez cleanup (brak AbortController)
+
+**Problem:** Komponent odmontowany w trakcie fetcha — state update na odmontowanym komponencie, memory leak.
+```typescript
+// ❌ Źle — brak cleanup
+useEffect(() => {
+  fetch(`/api/users/${userId}`)
+    .then((res) => res.json())
+    .then(setUser); // crash jeśli komponent odmontowany
+}, [userId]);
+```
+```typescript
+// ✅ Dobrze — AbortController w cleanup
+useEffect(() => {
+  const controller = new AbortController();
+
+  fetch(`/api/users/${userId}`, { signal: controller.signal })
+    .then((res) => res.json())
+    .then(setUser)
+    .catch((err) => {
+      if (err.name !== "AbortError") throw err;
+    });
+
+  return () => controller.abort();
+}, [userId]);
+```
+
+> **Nota:** W większości przypadków używaj React Query zamiast useEffect + fetch. React Query zarządza cleanup automatycznie.
+
+### 2. setTimeout/setInterval bez cleanup
+
+**Problem:** Timer wykonuje się po odmontowaniu komponentu — state update na ghost component.
+```typescript
+// ❌ Źle — brak cleanup
+useEffect(() => {
+  const id = setInterval(() => {
+    setCount((c) => c + 1);
+  }, 1000);
+  // brak clearInterval!
+}, []);
+```
+```typescript
+// ✅ Dobrze — cleanup w return
+useEffect(() => {
+  const id = setInterval(() => {
+    setCount((c) => c + 1);
+  }, 1000);
+
+  return () => clearInterval(id);
+}, []);
+```
+
+### 3. Wiele booleanów zamiast state machine
+
+**Problem:** Kombinatoryczna eksplozja stanów — można mieć `isLoading: true` i `isError: true` jednocześnie.
+```typescript
+// ❌ Źle — niezależne booleany
+const [isLoading, setIsLoading] = useState(false);
+const [isError, setIsError] = useState(false);
+const [isSuccess, setIsSuccess] = useState(false);
+// 8 możliwych kombinacji, większość nieprawidłowa!
+```
+```typescript
+// ✅ Dobrze — discriminated union
+type FetchState<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; error: Error }
+  | { status: "success"; data: T };
+
+const [state, setState] = useState<FetchState<User>>({ status: "idle" });
+
+// Użycie — TypeScript gwarantuje poprawny dostęp
+if (state.status === "success") {
+  return <div>{state.data.name}</div>;
+}
+```
+
+> **Nota:** React Query robi to automatycznie (status: "pending" | "error" | "success"). Używaj discriminated unions dla custom async logic.
+
+### 4. Brak guardu na mutually exclusive operations
+
+**Problem:** User klika 5 razy "Załaduj" — 5 równoległych requestów, wyścig o to który finish ostatni.
+```typescript
+// ❌ Źle — brak guardu
+async function handleLoad() {
+  setIsLoading(true);
+  const data = await fetchData(); // 5 równoległych!
+  setData(data); // ostatni wygrywa, niekoniecznie najnowszy
+  setIsLoading(false);
+}
+```
+```typescript
+// ✅ Dobrze — guard z flagą stanu
+const [status, setStatus] = useState<"idle" | "loading">("idle");
+
+async function handleLoad() {
+  if (status === "loading") return; // guard
+  setStatus("loading");
+  try {
+    const data = await fetchData();
+    setData(data);
+  } finally {
+    setStatus("idle");
+  }
+}
+```
+
+### 5. Brak cleanup dla subscriptions
+
+**Problem:** Memory leak — subscription żyje po odmontowaniu.
+```typescript
+// ❌ Źle — brak unsubscribe
+useEffect(() => {
+  const channel = supabase
+    .channel("posts")
+    .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, handleChange)
+    .subscribe();
+  // brak cleanup!
+}, []);
+```
+```typescript
+// ✅ Dobrze — unsubscribe w cleanup
+useEffect(() => {
+  const channel = supabase
+    .channel("posts")
+    .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, handleChange)
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
+```
+
+---
+
+## Performance
+
+### 1. N+1 query w pętli
+
+**Problem:** Zapytanie do bazy w pętli — 100 iteracji = 100 requestów.
+```typescript
+// ❌ Źle — fetch w pętli
+async function getPostsWithAuthors(postIds: string[]) {
+  const posts = [];
+  for (const id of postIds) {
+    const { data: post } = await supabase
+      .from("posts")
+      .select("*, author:users(*)")
+      .eq("id", id)
+      .single();
+    posts.push(post);
+  }
+  return posts;
+}
+```
+```typescript
+// ✅ Dobrze — batch query
+async function getPostsWithAuthors(postIds: string[]) {
+  const { data: posts, error } = await supabase
+    .from("posts")
+    .select("*, author:users(*)")
+    .in("id", postIds);
+
+  if (error) throw error;
+  return posts;
+}
+```
+
+### 2. Brak lazy loading dla dużych komponentów
+
+**Problem:** Cały bundle ładowany upfront — wolny initial load.
+```typescript
+// ❌ Źle — static import dużego komponentu
+import { HeavyChart } from "@/components/heavy-chart";
+import { AdminPanel } from "@/components/admin-panel";
+
+function App() {
+  return (
+    <div>
+      <HeavyChart />
+      {isAdmin && <AdminPanel />}
+    </div>
+  );
+}
+```
+```typescript
+// ✅ Dobrze — lazy loading z Suspense
+import { lazy, Suspense } from "react";
+
+const HeavyChart = lazy(() => import("@/components/heavy-chart"));
+const AdminPanel = lazy(() => import("@/components/admin-panel"));
+
+function App() {
+  return (
+    <div>
+      <Suspense fallback={<ChartSkeleton />}>
+        <HeavyChart />
+      </Suspense>
+      {isAdmin && (
+        <Suspense fallback={<PanelSkeleton />}>
+          <AdminPanel />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+```
+
+### 3. select("*") zamiast konkretnych kolumn
+
+**Problem:** Transfer niepotrzebnych danych — wolniejsze zapytania, większy payload.
+```typescript
+// ❌ Źle — wszystkie kolumny (może zawierać blob, JSON, wrażliwe dane)
+const { data } = await supabase
+  .from("users")
+  .select("*");
+
+// ✅ Dobrze — tylko potrzebne kolumny
+const { data } = await supabase
+  .from("users")
+  .select("id, name, avatar_url");
+```
+
+---
 
 ### 2. Brak typów dla props
 

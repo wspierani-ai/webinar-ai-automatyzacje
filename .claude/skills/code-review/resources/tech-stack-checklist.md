@@ -4,64 +4,18 @@ Checklisty do code review dla każdej technologii w projekcie.
 
 ---
 
-## Next.js 16 / App Router
-
-### Async Request APIs (Breaking Change w 15+)
-- [ ] `params` jest await'owane: `const { slug } = await params`
-- [ ] `searchParams` jest await'owane: `const { q } = await searchParams`
-- [ ] Dotyczy: `page.tsx`, `layout.tsx`, `route.ts`, `generateMetadata`, `generateStaticParams`
-- [ ] Brak synchronicznego dostępu: ~~`params.slug`~~ → `(await params).slug`
-
-### Server vs Client Components
-- [ ] `"use client"` tylko na liściach drzewa (minimalizacja JS bundle)
-- [ ] Server Components dla statycznych części UI
-- [ ] Brak importu client-only hooks w Server Components
-- [ ] Brak bezpośredniego użycia `window`, `document` w Server Components
-
-### Routing i struktura
-- [ ] `loading.tsx` dla Streaming UI
-- [ ] `error.tsx` dla error boundaries
-- [ ] `not-found.tsx` gdzie potrzeba
-- [ ] Metadata (SEO) zdefiniowana statycznie lub dynamicznie
-
-### Data Fetching
-- [ ] Cache strategy zdefiniowana jawnie (Next.js 15+ domyślnie `no-store`)
-- [ ] `revalidate` ustawione dla ISR gdzie sensowne
-- [ ] Parallel fetching gdzie możliwe (`Promise.all`)
-- [ ] `headers()`/`cookies()` tylko w dynamicznych komponentach (psują cache statycznych)
-
-### Server Actions
-- [ ] W oddzielnych plikach z `"use server"` (bezpieczeństwo)
-- [ ] Walidacja inputów (Zod)
-- [ ] Sprawdzenie uprawnień użytkownika
-- [ ] Brak wycieków danych do klienta
-- [ ] Przekazywane do Client Components jako props lub importowane z pliku `"use server"`
-
-### API Routes
-- [ ] Używane tylko gdy Server Actions nie wystarczają
-- [ ] Proper error responses (status codes)
-- [ ] Rate limiting dla publicznych endpointów
-- [ ] `params` i `searchParams` await'owane w `route.ts`
-
-### Hydration
-- [ ] Brak Hydration Mismatch (daty, random, window)
-- [ ] `suppressHydrationWarning` tylko gdy uzasadnione
-- [ ] Dynamiczne importy z `ssr: false` dla client-only bibliotek
-
----
-
 ## React 19
 
 ### Nowe API
 - [ ] `use()` zamiast `useEffect` + `useState` dla async data
 - [ ] `useFormStatus()` dla form loading states
 - [ ] `useOptimistic()` dla optimistic updates
-- [ ] `useActionState()` dla Server Actions w formularzach
+- [ ] `useActionState()` dla form actions (client-side)
 
 ### Usunięte/zmienione wzorce
 - [ ] Brak `forwardRef` — ref to zwykły prop w React 19
 - [ ] `<Context>` zamiast `<Context.Provider>`
-- [ ] Brak `useContext` gdzie można użyć `use(Context)`
+- [ ] Brak `useContext` gdzie można użyć `use(Context)` — pozwala na warunkowe użycie (w if/loop), czego useContext nie obsługuje
 
 ### React Compiler (jeśli włączony)
 - [ ] Brak ręcznych `useMemo` (compiler optymalizuje automatycznie)
@@ -77,71 +31,110 @@ Checklisty do code review dla każdej technologii w projekcie.
 ### Forms
 - [ ] Native form actions gdzie możliwe
 - [ ] `formAction` prop na `<button>`
-- [ ] Progressive enhancement (działa bez JS)
-- [ ] Server Actions przekazywane do Client Components jako props (lub importowane z pliku `"use server"`)
+- [ ] React Hook Form + zodResolver jako domyślne podejście
+- [ ] Native form actions jako alternatywa dla prostych formularzy
 
 ---
 
-## Drizzle ORM / SQLite / LibSQL
+## Async / Race Conditions
 
-### Schema
-- [ ] Typy kolumn odpowiadają danym
-- [ ] Relacje prawidłowo zdefiniowane
-- [ ] Indeksy dla często wyszukiwanych kolumn
-- [ ] Migracje zsynchronizowane ze schematem
+### useEffect cleanup
+- [ ] useEffect z async ma AbortController w cleanup
+- [ ] setTimeout/setInterval ma clearTimeout/clearInterval w useEffect return
+- [ ] requestAnimationFrame loop sprawdza cancel flag
+- [ ] WebSocket / EventSource zamykany w cleanup
+- [ ] IntersectionObserver / MutationObserver disconnected w cleanup
+- [ ] Supabase realtime subscription unsubscribed w cleanup
 
-### Queries
-- [ ] **`await` przy każdym zapytaniu** (częsty błąd — zwraca Promise zamiast danych)
-- [ ] Brak N+1 (użyj `with` dla relacji)
-- [ ] `select()` tylko potrzebne kolumny
-- [ ] `where()` używa indeksowanych kolumn
-- [ ] Prepared statements dla powtarzalnych zapytań
+### State management
+- [ ] Więcej niż 1 boolean ładowania = discriminated union / state machine
+- [ ] Operacje wzajemnie wykluczające się mają guard (nie ładuj kolejnego preview jeśli poprzedni trwa)
+- [ ] Promise.allSettled dla równoległych operacji które mogą niezależnie failować
 
-### Batching (LibSQL/Turso over HTTP)
-- [ ] `db.batch()` dla wielu operacji zapisu (redukcja round-trips)
-- [ ] Grupowanie insertów/update'ów w jednym batch
-- [ ] Unikanie sekwencyjnych pojedynczych zapytań w pętli
+### Async patterns
+- [ ] Promise.finally() do cleanup zamiast duplikacji w resolve/reject
+- [ ] Brak fire-and-forget promises (każdy promise obsłużony lub świadomie zignorowany z komentarzem)
+- [ ] Brak floating promises w event handlerach (`.catch()` lub `void`)
 
-### Transactions
-- [ ] `db.transaction()` dla operacji atomowych
-- [ ] Rollback przy błędach
-- [ ] Brak długich transakcji (blokowanie)
-- [ ] Batch preferowany nad transakcją dla prostych wielokrotnych insertów
+---
+
+## Supabase
+
+### RLS (Row Level Security)
+- [ ] Polityki RLS włączone na wszystkich tabelach
+- [ ] Polityki SELECT/INSERT/UPDATE/DELETE zdefiniowane osobno
+- [ ] Brak tabel z wyłączonym RLS w produkcji
+
+### Auth
+- [ ] Sprawdzenie `auth.uid()` w politykach RLS
+- [ ] Weryfikacja sesji przed operacjami na danych
+- [ ] Brak bezpośrednich operacji bez sprawdzenia auth
+
+### Error handling
+- [ ] Obsługa błędów z odpowiedzi Supabase (`error` sprawdzany po każdym zapytaniu)
+- [ ] Rozróżnienie błędów auth vs database vs network
+- [ ] Sensowne komunikaty błędów dla użytkownika
 
 ### Typy
-- [ ] Typy Drizzle używane w całej aplikacji
-- [ ] `InferSelectModel` / `InferInsertModel` dla typów
-- [ ] Brak `any` przy operacjach DB
+- [ ] Typy TypeScript generowane ze schematu bazy (`supabase gen types`)
+- [ ] Typy używane w całej aplikacji (brak `any` przy operacjach DB)
+- [ ] `Database` type używany w kliencie Supabase
+
+### Edge Functions
+- [ ] Service role key używany tylko w Edge Functions (nigdy po stronie klienta)
+- [ ] Walidacja inputów w Edge Functions (Zod)
+- [ ] Proper error responses (status codes + JSON body)
 
 ---
 
-## SWR / Data Fetching
+## Sentry
 
-### Kiedy używać SWR vs Server Components
-- [ ] SWR dla danych dynamicznych/klienckich (polling, real-time, user-specific)
-- [ ] Server Components + `use()` dla danych przy nawigacji (SSR/SSG)
-- [ ] Brak dublowania — nie fetchuj tego samego w Server Component i SWR
+### Capture
+- [ ] Wszystkie bloki `catch` raportują do Sentry (`Sentry.captureException`)
+- [ ] Proper error levels: `fatal` / `error` / `warning` używane adekwatnie
+- [ ] Brak zgłaszania oczekiwanych błędów (np. walidacja formularza)
 
-### Konfiguracja
-- [ ] Klucze SWR unikalne i opisowe
-- [ ] `fetcher` zdefiniowany globalnie lub per-hook
-- [ ] Error retry skonfigurowane sensownie
+### GDPR / Prywatność
+- [ ] Maskowanie emaili w `beforeSend` callback
+- [ ] Brak danych wrażliwych w kontekście Sentry (hasła, tokeny, PII)
+- [ ] `beforeBreadcrumb` filtruje wrażliwe URL-e i dane
+
+### Error Boundary
+- [ ] `Sentry.ErrorBoundary` opakowuje aplikację
+- [ ] Fallback UI wyświetlany przy crashu
+- [ ] `componentStack` raportowany z błędem
+
+### Kontekst
+- [ ] `Sentry.setUser()` po zalogowaniu (tylko ID, bez PII)
+- [ ] `Sentry.setTag()` dla kluczowych metadanych (environment, feature)
+- [ ] Brak danych wrażliwych w `Sentry.setExtra()` / `Sentry.setContext()`
+
+---
+
+## React Data Fetching (React Query)
+
+### useQuery
+- [ ] `useQuery` / `useSuspenseQuery` do pobierania danych (nie `useEffect` + `fetch`)
+- [ ] `queryKey` ma prawidłową strukturę (hierarchiczną, z parametrami)
+- [ ] `staleTime` skonfigurowane odpowiednio do typu danych
+- [ ] `queryFn` nie łamie zasad hooks
+
+### Stany
+- [ ] Loading state obsłużony (`isLoading` / `isPending`)
+- [ ] Error state obsłużony (`isError` + `error`)
+- [ ] Empty state obsłużony (dane puste ale nie error)
+- [ ] Placeholder/skeleton podczas ładowania
 
 ### Mutacje
-- [ ] `mutate()` po zmianach danych
-- [ ] Optimistic updates gdzie UX tego wymaga
-- [ ] Revalidation after mutation
-
-### States
-- [ ] Loading state obsłużony (`isLoading`)
-- [ ] Error state obsłużony (`error`)
-- [ ] Empty state obsłużony
-- [ ] Stale data pokazywane podczas revalidation
+- [ ] `useMutation` do operacji zapisu
+- [ ] `onSuccess` invaliduje powiązane queries (`queryClient.invalidateQueries`)
+- [ ] Optimistic updates gdzie UX tego wymaga (`onMutate` + `onError` rollback)
+- [ ] Error handling w `onError` callback
 
 ### Performance
-- [ ] Deduplikacja działa (ten sam klucz)
-- [ ] `revalidateOnFocus` wyłączone jeśli niepotrzebne
-- [ ] `refreshInterval` tylko gdzie potrzeba real-time
+- [ ] Deduplikacja zapytań (ten sam `queryKey` nie fetchuje wielokrotnie)
+- [ ] `enabled` flag do warunkowego fetchowania
+- [ ] `select` do transformacji danych (unikanie re-renderów)
 
 ---
 
@@ -177,7 +170,7 @@ Checklisty do code review dla każdej technologii w projekcie.
 
 ---
 
-## Radix UI
+## shadcn/ui / Radix UI
 
 ### Użycie
 - [ ] Odpowiedni komponent (Dialog vs AlertDialog, etc.)
@@ -225,23 +218,24 @@ Checklisty do code review dla każdej technologii w projekcie.
 ## Bezpieczeństwo
 
 ### Input
-- [ ] Walidacja Zod na Server Actions
+- [ ] Walidacja Zod na operacjach zapisu
 - [ ] Sanityzacja danych użytkownika
-- [ ] Prepared statements dla SQL
+- [ ] Parametryzowane zapytania (Supabase domyślnie)
 
 ### Auth/Authz
-- [ ] Sprawdzenie sesji w Server Actions
+- [ ] Sprawdzenie `supabase.auth.getUser()` przed operacją
+- [ ] Polityki RLS wymuszają dostęp per-user
+- [ ] Brak danych innych użytkowników (RLS + sprawdzenie w kodzie)
 - [ ] Sprawdzenie uprawnień przed operacją
-- [ ] Brak danych innych użytkowników
 
 ### Secrets
 - [ ] Brak hardcoded secrets
-- [ ] Env variables przez `process.env`
+- [ ] Env variables przez `import.meta.env`
 - [ ] `.env` w `.gitignore`
 
 ### Output
 - [ ] Brak XSS (React domyślnie escapuje)
-- [ ] `dangerouslySetInnerHTML` tylko sanityzowane
+- [ ] `dangerouslySetInnerHTML` tylko z sanityzowanym contentem (DOMPurify)
 - [ ] Error messages nie zdradzają internals
 
 ---
@@ -250,24 +244,19 @@ Checklisty do code review dla każdej technologii w projekcie.
 
 ### Bundle
 - [ ] Dynamic imports dla dużych komponentów
-- [ ] `next/dynamic` z `loading` component
+- [ ] `React.lazy()` z `<Suspense fallback={...}>` dla lazy loading
 - [ ] Tree shaking działa (named imports)
 
 ### Images
-- [ ] `next/image` zamiast `<img>`
-- [ ] Width/height zdefiniowane
-- [ ] Lazy loading (domyślne)
+- [ ] `<img>` z `loading="lazy"` dla obrazów poniżej fold
+- [ ] `fetchpriority="high"` dla obrazów above-the-fold (LCP)
+- [ ] Width/height zdefiniowane (zapobieganie layout shift)
+- [ ] Formaty next-gen (WebP/AVIF) gdzie możliwe
 
 ### Lists
 - [ ] Wirtualizacja dla długich list (>100 items)
 - [ ] Pagination/infinite scroll
 - [ ] Stable keys
-
-### DB
-- [ ] Indeksy dla WHERE/ORDER BY
-- [ ] Limit dla list queries
-- [ ] Brak N+1
-- [ ] `db.batch()` dla wielu operacji (LibSQL)
 
 ---
 

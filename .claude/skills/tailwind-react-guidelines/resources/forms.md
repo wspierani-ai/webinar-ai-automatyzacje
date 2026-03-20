@@ -14,6 +14,31 @@ React Hook Form + Zod - walidacja, dostępność, integracja z React Query.
 | DevTools | Tak | Nie |
 | Boilerplate | Mały | Duży |
 
+### Alternatywa: useActionState (React 19)
+
+Dla prostych formularzy bez zaawansowanej walidacji:
+```typescript
+import { useActionState } from 'react';
+
+const [state, submitAction, isPending] = useActionState(
+    async (_prev, formData: FormData) => {
+        const email = formData.get('email') as string;
+        if (!email) return { error: 'Email wymagany' };
+        await api.subscribe(email);
+        return { error: null, success: true };
+    },
+    { error: null, success: false }
+);
+
+<form action={submitAction}>
+    <Input name="email" type="email" />
+    <Button type="submit" disabled={isPending}>Zapisz</Button>
+</form>
+```
+
+**Kiedy `useActionState`:** 1-3 pola, brak złożonej walidacji, progressive enhancement.
+**Kiedy React Hook Form:** >3 pola, Zod walidacja, wizard, dynamic fields, DevTools.
+
 ---
 
 ## Setup

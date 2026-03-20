@@ -2,7 +2,7 @@
 
 Szczegółowe wzorce integracji Sentry z Supabase Edge Functions (Deno runtime).
 
-> **⚠️ KNOWN LIMITATIONS (Stan: Grudzień 2025)**
+> **⚠️ KNOWN LIMITATIONS (Stan: Marzec 2026)**
 >
 > Sentry Deno SDK ma ograniczenia w kontekście Supabase Edge Functions:
 > 1. **Brak wsparcia dla `Deno.serve` instrumentation** - brak automatycznej separacji scope między requestami
@@ -28,14 +28,13 @@ Szczegółowe wzorce integracji Sentry z Supabase Edge Functions (Deno runtime).
 Supabase Edge Functions używają Deno. Oficjalnie zalecany import:
 
 ```typescript
-// Oficjalny Sentry SDK dla Deno (zalecane przez Supabase docs)
-import * as Sentry from 'https://deno.land/x/sentry/index.mjs';
+// Oficjalny Sentry SDK dla Deno
+import * as Sentry from 'npm:@sentry/deno';
 ```
 
 **Uwagi:**
-- Używaj URL bez wersji (`/sentry/index.mjs`) - automatycznie pobiera najnowszą
-- Alternatywnie: `import * as Sentry from "npm:@sentry/deno"` (wymaga Deno 2.0+)
-- Sprawdź kompatybilność na https://deno.land/x/sentry
+- `npm:@sentry/deno` to aktualny zalecany import (stary `deno.land/x/sentry` jest deprecated)
+- Oficjalnie wymaga Deno 2.0+, ale działa z Supabase Edge Functions (Deno 1.45.2) z `defaultIntegrations: false`
 
 ---
 
@@ -44,7 +43,7 @@ import * as Sentry from 'https://deno.land/x/sentry/index.mjs';
 **Plik: `supabase/functions/_shared/sentry.ts`**
 
 ```typescript
-import * as Sentry from 'https://deno.land/x/sentry/index.mjs';
+import * as Sentry from 'npm:@sentry/deno';
 
 let initialized = false;
 
@@ -89,7 +88,7 @@ export function initSentry(functionName: string): typeof Sentry {
  * @param error - Błąd do przechwycenia
  * @param context - Kontekst operacji (bez wrażliwych danych!)
  */
-export function captureError(
+export async function captureError(
   error: unknown,
   context?: {
     operation?: string;
@@ -98,7 +97,7 @@ export function captureError(
     // NIE: user_email (wrażliwe), NIE: token, NIE: hasło
     extra?: Record<string, unknown>;
   }
-): void {
+): Promise<void> {
   Sentry.withScope((scope) => {
     // Ustawianie tagów
     if (context?.operation) {
@@ -131,6 +130,9 @@ export function captureError(
 
     Sentry.captureException(error);
   });
+
+  // WAŻNE: flush przed zakończeniem requestu (runtime może się zakończyć)
+  await Sentry.flush(2000);
 
   // Zawsze też loguj do konsoli (Supabase logs)
   console.error('[Sentry captured]', error);
@@ -410,9 +412,10 @@ captureError(error, {
 **Problem:** Import Sentry nie działa lub błędy runtime.
 
 **Rozwiązanie:**
-1. Używaj URL bez wersji: `https://deno.land/x/sentry/index.mjs`
+1. Używaj `npm:@sentry/deno` (stary `deno.land/x/sentry` jest deprecated)
 2. Ustaw `defaultIntegrations: false` w `Sentry.init()`
-3. Alternatywnie: custom fetch do Sentry API (fallback)
+3. Dodaj `await Sentry.flush(2000)` po `captureException` — runtime może się zakończyć przed wysłaniem
+4. Alternatywnie: custom fetch do Sentry API (fallback)
 
 ```typescript
 // Fallback: Custom fetch do Sentry (jeśli SDK nie działa)
@@ -463,4 +466,4 @@ async function sendToSentry(error: Error, context: Record<string, unknown>) {
 - Używaj: `@supabase/supabase-js@2` (automatycznie najnowsza z major 2)
 
 **Sentry:**
-- Używaj: `/sentry/index.mjs` bez wersji (najnowsza stabilna)
+- Używaj: `npm:@sentry/deno` (stary `deno.land/x/sentry` jest deprecated)

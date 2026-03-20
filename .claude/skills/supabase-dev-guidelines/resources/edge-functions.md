@@ -28,7 +28,7 @@ export const corsHeaders = {
 };
 ```
 
-### Podstawowy Szablon (2025)
+### Podstawowy Szablon (2026)
 ```typescript
 // supabase/functions/my-function/index.ts
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
 
 ---
 
-## Importy (2025)
+## Importy (2026)
 
 ### Preferowane Źródła
 ```typescript
@@ -86,12 +86,32 @@ import { encodeBase64 } from 'jsr:@std/encoding@1/base64';
 
 ### Dlaczego JSR/npm zamiast esm.sh?
 
-| Źródło | Status 2025 | Użycie |
+| Źródło | Status 2026 | Użycie |
 |--------|-------------|--------|
 | `jsr:` | ✅ Preferowane | Pakiety Deno-native |
 | `npm:` | ✅ Preferowane | Pakiety npm |
 | `esm.sh` | ⚠️ Legacy | Tylko gdy jsr/npm nie działa |
-| `deno.land/x` | ⚠️ Legacy | Migruj do jsr: |
+| `deno.land/x` | ❌ Deprecated | Migruj do jsr: |
+
+### Konfiguracja `deno.json` (Preferowane)
+
+Od Deno 2.x, `deno.json` jest preferowany nad import maps. Jeśli oba istnieją, `deno.json` ma pierwszeństwo.
+
+```json
+// supabase/functions/deno.json
+{
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2",
+    "stripe": "npm:stripe@17"
+  }
+}
+```
+
+Z `deno.json` importy w kodzie są czystsze:
+```typescript
+import { createClient } from '@supabase/supabase-js';
+import Stripe from 'stripe';
+```
 
 ---
 
@@ -165,7 +185,9 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import Stripe from 'npm:stripe@17';
 import { corsHeaders } from '../_shared/cors.ts';
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '');
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+    apiVersion: '2024-12-18.acacia',
+});
 
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
@@ -243,7 +265,9 @@ Deno.serve(async (req) => {
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import Stripe from 'npm:stripe@17';
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '');
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+    apiVersion: '2024-12-18.acacia',
+});
 const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 
 Deno.serve(async (req) => {
@@ -531,7 +555,7 @@ Deno.serve(async (req) => {
 
 ## Podsumowanie
 
-**Checklist Edge Function (2025):**
+**Checklist Edge Function (2026):**
 - [ ] Użyj `Deno.serve()` (nie importuj serve)
 - [ ] Importy: `jsr:` dla Supabase, `npm:` dla Stripe
 - [ ] Obsłuż CORS preflight (OPTIONS)
@@ -544,12 +568,12 @@ Deno.serve(async (req) => {
 
 **Migracja ze Starego Kodu:**
 ```typescript
-// ❌ STARY
+// ❌ STARY (Deno 1.x era)
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 serve(async (req) => { ... });
 
-// ✅ NOWY
+// ✅ NOWY (Deno 2.x — obecny runtime)
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 Deno.serve(async (req) => { ... });
 ```

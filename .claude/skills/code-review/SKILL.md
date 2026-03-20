@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: "Przeprowadza code review dla Next.js 16, React 19, Drizzle ORM, Tailwind CSS 4, Radix UI, SWR. Używaj przy przeglądaniu PR, ocenie implementacji fazy/etapu, weryfikacji zgodności z planem. Generuje raport z klasyfikacją problemów (krytyczne/poważne/drobne/sugestie)."
+description: "Przeprowadza code review dla React 19, TailwindCSS v4, shadcn/ui, Supabase, Sentry. Używaj przy przeglądaniu PR, ocenie implementacji fazy/etapu, weryfikacji zgodności z planem. Generuje raport z klasyfikacją problemów (krytyczne/poważne/drobne/sugestie)."
 ---
 
 # Code Review
 
-Skill do przeprowadzania code review w projekcie Next.js 16 + React 19.
+Skill do przeprowadzania code review w projekcie React 19 + TailwindCSS v4 + shadcn/ui.
 
 ## Kiedy używać
 
@@ -30,14 +30,12 @@ Na podstawie zmienionych plików, załaduj odpowiednie sekcje z `references/tech
 
 | Pliki | Sekcje do sprawdzenia |
 |-------|----------------------|
-| `*.tsx`, `*.ts` w `app/` | Next.js 16, React 19, TypeScript |
-| `*.tsx` z `"use client"` | React 19, SWR, Radix UI |
+| `*.tsx`, `*.ts` w `src/` | React 19, TypeScript |
 | `*.tsx` z hooks | React 19 (zbędne useMemo/useCallback jeśli React Compiler, stary forwardRef) |
-| `schema.ts`, `db/` | Drizzle ORM |
+| `src/lib/supabase.ts`, `supabase/**` | Supabase (RLS, auth, client) |
 | `*.css` z `@theme` | Tailwind CSS 4 (konfiguracja, zmienne CSS) |
-| Komponenty UI | Tailwind CSS 4, Radix UI, Dostępność |
-| Server Actions | Bezpieczeństwo, Next.js 16 |
-| Pliki z `headers()`/`cookies()` | Next.js 16 (wpływ na cache) |
+| Komponenty UI | Tailwind CSS 4, shadcn/ui, Dostępność |
+| `src/lib/sentry.ts`, error handling | Sentry (captureException, Error Boundary) |
 
 ### Krok 3: Analizuj kod
 
@@ -47,7 +45,9 @@ Dla każdego zmienionego pliku:
 2. **Poprawność** — błędy logiczne, edge cases?
 3. **Bezpieczeństwo** — walidacja, XSS, wycieki danych?
 4. **Wydajność** — N+1, bundle size, lazy loading?
-5. **Jakość** — czytelność, DRY, nazewnictwo?
+5. **Race conditions** — useEffect cleanup, AbortController, state machines dla async?
+6. **Jakość** — czytelność, DRY, nazewnictwo?
+7. **Filozofia** — istniejący kod = surowe review, nowy izolowany = pragmatyczne
 
 Techniki i przykłady feedbacku → `references/review-patterns.md`
 Częste błędy w tym stacku → `references/common-issues.md`
@@ -57,18 +57,17 @@ Częste błędy w tym stacku → `references/common-issues.md`
 🔴 [blocking] KRYTYCZNE — blokuje merge
    - Błędy bezpieczeństwa
    - Crash/utrata danych
-   - Wycieki danych server → client
-   - Hydration Mismatch
-   - Drizzle: brak `await` przy zapytaniach (zwraca Promise zamiast danych)
-   - Next.js: `headers()`/`cookies()` w komponentach statycznych (psuje cache)
-   - Next.js: brak `await` na `params`/`searchParams`
+   - Wycieki danych (np. select("*") bez filtrowania kolumn)
+   - Brak Error Boundary opakowującego krytyczne sekcje
+   - Supabase: brak RLS policies na tabelach z danymi użytkowników
+   - Sentry: brak captureException w blokach catch
 
 🟠 [important] POWAŻNE — wymaga poprawy
-   - Błędne Server/Client Components
+   - Supabase: zapytania bez filtrów (brak .eq(), .match())
    - Problemy wydajnościowe
    - Brak WCAG compliance
    - Niespełnione wymagania
-   - React 19: `useEffect` do fetchowania zamiast Server Components/SWR/use()
+   - React 19: `useEffect` do fetchowania zamiast React Query
    - Tailwind 4: nadużywanie arbitrary values (`w-[123px]`) zamiast tokenów
 
 🟡 [nit] DROBNE — zalecane
@@ -148,6 +147,9 @@ Ten skill jest wywoływany przez slash komendę `/dev-docs-review [ścieżka] [n
 3. **Proponuj rozwiązania** — nie tylko wskazuj problemy
 4. **Doceniaj** — zauważaj dobre rozwiązania
 5. **Priorytetyzuj** — blocking > important > nit
+6. **Istniejący kod = surowo** — każda dodana złożoność wymaga uzasadnienia
+7. **Nowy izolowany kod = pragmatycznie** — jeśli działa i jest testowalny, nie blokuj postępu
+8. **5-sekundowa reguła** — jeśli nie rozumiesz co robi funkcja/komponent w 5 sekund od nazwy, to zła nazwa
 
 ## Dokumentacja referencyjna
 

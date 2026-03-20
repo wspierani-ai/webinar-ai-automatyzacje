@@ -35,7 +35,7 @@ export default MyComponent;
 
 `React.FC` nadal działa, ale jest opcjonalny:
 ```typescript
-// Też poprawne, ale mniej preferowane w 2025
+// Też poprawne, ale mniej preferowane w 2026
 export const MyComponent: React.FC<MyComponentProps> = ({ userId }) => {
     return <div>{userId}</div>;
 };
@@ -61,7 +61,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { logger } from '@/lib/logger';
 
-import type { Template } from '@/types/database';
+import type { Item } from '@/types/database';
 
 // 1. PROPS INTERFACE
 interface MyComponentProps {
@@ -88,7 +88,7 @@ export function MyComponent({
 
     // 4. HANDLERS
     // Bez React Compiler - useCallback dla handlers przekazywanych do memo children
-    // Z React Compiler - zwykłe funkcje, compiler sam optymalizuje
+    // Z React Compiler 1.0 (rekomendowany od Paź 2025) - zwykłe funkcje, compiler sam optymalizuje
     const handleSave = async () => {
         try {
             await saveData();
@@ -480,6 +480,49 @@ function DataView() {
 ```
 
 **Dla Vite SPA:** React Query jest nadal lepszym wyborem dla większości przypadków - oferuje cache, refetch, devtools. Hook `use` jest niskopoziomowy.
+
+---
+
+## React 19: useActionState
+
+Hook do zarządzania stanem formularza z wbudowaną obsługą pending:
+```typescript
+import { useActionState } from 'react';
+
+function SimpleForm() {
+    const [state, submitAction, isPending] = useActionState(
+        async (previousState: State, formData: FormData) => {
+            const name = formData.get('name') as string;
+            try {
+                await api.submit({ name });
+                return { success: true, error: null };
+            } catch (error) {
+                return { success: false, error: 'Nie udało się wysłać' };
+            }
+        },
+        { success: false, error: null }
+    );
+
+    return (
+        <form action={submitAction}>
+            <Input name="name" />
+            {state.error && <p className="text-destructive">{state.error}</p>}
+            <Button type="submit" disabled={isPending}>
+                {isPending ? 'Wysyłanie...' : 'Wyślij'}
+            </Button>
+        </form>
+    );
+}
+```
+
+**Kiedy `useActionState` vs React Hook Form:**
+
+| `useActionState` | React Hook Form + Zod |
+|------|------|
+| Proste formularze (1-3 pola) | Złożone formularze (>3 pola) |
+| Brak client-side walidacji | Zaawansowana walidacja |
+| Progressive enhancement | Bogate interakcje (wizard, dynamic fields) |
+| Natywny `<form action>` | Kontrolowane komponenty |
 
 ---
 

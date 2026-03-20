@@ -1,6 +1,6 @@
 # Standardy TypeScript
 
-Wytyczne TypeScript 5.7+ i React 19 - konfiguracja, typy, nowoczesne wzorce.
+Wytyczne TypeScript 5.7+ (aktualna: 5.9) i React 19 - konfiguracja, typy, nowoczesne wzorce.
 
 ---
 
@@ -15,7 +15,7 @@ Wytyczne TypeScript 5.7+ i React 19 - konfiguracja, typy, nowoczesne wzorce.
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true,
         
-        // Moduły (standard 2025)
+        // Moduły (standard 2026)
         "target": "ES2022",
         "lib": ["DOM", "DOM.Iterable", "ESNext"],
         "module": "ESNext",
@@ -30,7 +30,7 @@ Wytyczne TypeScript 5.7+ i React 19 - konfiguracja, typy, nowoczesne wzorce.
 ```
 
 **Kluczowe flagi:**
-- `moduleResolution: "bundler"` - standard dla Vite/Next.js/Remix
+- `moduleResolution: "bundler"` - standard dla Vite i nowoczesnych bundlerów
 - `verbatimModuleSyntax: true` - zastępuje stare `importsNotUsedAsValues` i `preserveValueImports`
 - `noUncheckedSideEffectImports` - TS 5.6+, wymusza explicit side-effect imports
 
@@ -38,9 +38,9 @@ Wytyczne TypeScript 5.7+ i React 19 - konfiguracja, typy, nowoczesne wzorce.
 
 ## Type Imports (Inline Syntax)
 
-Preferowana składnia 2025 - jeden import z type modifier:
+Preferowana składnia 2026 - jeden import z type modifier:
 ```typescript
-// TAK - inline type imports (standard 2025)
+// TAK - inline type imports (standard 2026)
 import { 
     useState, 
     useEffect, 
@@ -170,7 +170,7 @@ export async function UserProfile({ userId }: { userId: string }) {
 type AsyncComponent = () => Promise<JSX.Element>;
 ```
 
-**Uwaga:** Async components działają w Server Components (Next.js App Router, Remix). W czystym React (SPA) używaj standardowych komponentów + data fetching.
+**Uwaga:** Async components działają w Server Components (frameworki SSR). W Vite SPA używaj standardowych komponentów + React Query do data fetchingu.
 
 ---
 
@@ -179,17 +179,17 @@ type AsyncComponent = () => Promise<JSX.Element>;
 // Pozwól inferować dla prostych przypadków
 const [count, setCount] = useState(0);           // number
 const [name, setName] = useState('');            // string
-const items = templates.filter(t => t.active);   // Template[]
+const items = templates.filter(t => t.active);   // Item[]
 
 // Explicit gdy null/undefined
 const [user, setUser] = useState<User | null>(null);
 const [error, setError] = useState<Error | undefined>(undefined);
 
 // Explicit dla pustych tablic
-const [items, setItems] = useState<Template[]>([]);
+const [items, setItems] = useState<Item[]>([]);
 
 // Explicit return types dla publicznych funkcji
-async function getTemplates(): Promise<Template[]> {
+async function getItems(): Promise<Item[]> {
     // ...
 }
 ```
@@ -314,6 +314,22 @@ function useLocalStorage<T>(key: string, defaultValue: NoInfer<T>): T {
 
 ---
 
+## Import Defer (TS 5.9+)
+
+Odroczona ewaluacja modułu — kod importowany jest wykonywany dopiero przy pierwszym dostępie:
+```typescript
+// Moduł ładowany leniwie — ewaluacja dopiero przy użyciu
+import defer * as analytics from './analytics';
+
+function handleClick() {
+    analytics.track('click'); // Ewaluacja modułu dopiero tutaj
+}
+```
+
+**Uwaga:** Tylko namespace imports (`* as`). Named/default imports nie są wspierane z `defer`. Wymaga bundlera z obsługą deferred imports.
+
+---
+
 ## Runtime Validation z Zod
 
 TypeScript sprawdza typy tylko w compile time. Dla danych zewnętrznych użyj Zod:
@@ -321,27 +337,27 @@ TypeScript sprawdza typy tylko w compile time. Dla danych zewnętrznych użyj Zo
 import { z } from 'zod';
 
 // Schema
-const TemplateSchema = z.object({
+const ItemSchema = z.object({
     id: z.string().uuid(),
-    nazwa: z.string().min(1),
-    kategoria: z.enum(['marketing', 'sprzedaz', 'hr']),
+    name: z.string().min(1),
+    category: z.enum(['marketing', 'sprzedaz', 'hr']),
     created_at: z.string().datetime(),
 });
 
 // Typ ze schema
-type Template = z.infer<typeof TemplateSchema>;
+type Item = z.infer<typeof ItemSchema>;
 
 // Walidacja
-async function fetchTemplate(id: string): Promise<Template> {
-    const response = await fetch(`/api/templates/${id}`);
+async function fetchItem(id: string): Promise<Item> {
+    const response = await fetch(`/api/items/${id}`);
     const data = await response.json();
-    return TemplateSchema.parse(data); // Rzuca błąd jeśli invalid
+    return ItemSchema.parse(data); // Rzuca błąd jeśli invalid
 }
 
 // Safe parse
-const result = TemplateSchema.safeParse(data);
+const result = ItemSchema.safeParse(data);
 if (result.success) {
-    // result.data jest typu Template
+    // result.data jest typu Item
 } else {
     logger.error('Invalid data', result.error);
 }
@@ -352,19 +368,19 @@ if (result.success) {
 ## Type Guards
 ```typescript
 // Type guard function
-function isTemplate(item: unknown): item is Template {
+function isItem(item: unknown): item is Item {
     return (
         typeof item === 'object' &&
         item !== null &&
         'id' in item &&
-        'nazwa' in item
+        'name' in item
     );
 }
 
 // Discriminated unions
 interface SuccessResponse {
     status: 'success';
-    data: Template[];
+    data: Item[];
 }
 
 interface ErrorResponse {
@@ -408,9 +424,9 @@ NoInfer<T>        // Blokuj inferencję (TS 5.4+)
 
 ### Przykłady
 ```typescript
-type TemplatePreview = Pick<Template, 'id' | 'nazwa'>;
-type TemplateCreate = Omit<Template, 'id' | 'created_at'>;
-type TemplateCache = Record<string, Template>;
+type ItemPreview = Pick<Item, 'id' | 'name'>;
+type ItemCreate = Omit<Item, 'id' | 'created_at'>;
+type ItemCache = Record<string, Item>;
 
 type StringKeys = Extract<'a' | 'b' | 1 | 2, string>; // 'a' | 'b'
 type NumberKeys = Exclude<'a' | 'b' | 1 | 2, string>; // 1 | 2
@@ -418,7 +434,7 @@ type NumberKeys = Exclude<'a' | 'b' | 1 | 2, string>; // 1 | 2
 type MaybeUser = User | null | undefined;
 type DefiniteUser = NonNullable<MaybeUser>; // User
 
-type Data = Awaited<Promise<Template[]>>; // Template[]
+type Data = Awaited<Promise<Item[]>>; // Item[]
 ```
 
 ---
@@ -465,7 +481,7 @@ export const List = <T,>({
 // Użycie
 <List
     items={templates}
-    renderItem={(t) => <TemplateCard template={t} />}
+    renderItem={(t) => <ItemCard item={t} />}
     keyExtractor={(t) => t.id}
 />
 ```
@@ -498,10 +514,10 @@ if (!user) throw new Error('User not found');
 ### Type Assertions bez walidacji
 ```typescript
 // NIE
-const data = response as Template[];
+const data = response as Item[];
 
 // TAK
-const data = TemplateArraySchema.parse(response);
+const data = ItemArraySchema.parse(response);
 ```
 
 ---

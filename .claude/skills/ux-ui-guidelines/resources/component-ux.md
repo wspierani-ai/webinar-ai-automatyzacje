@@ -150,9 +150,28 @@ function CustomModal({ open, children }: Props) {
 
 ---
 
+### Popover API (Natywne Popovers)
+
+Dla non-modal tooltipów i menu — bez JS:
+```typescript
+// Tooltip
+<Button popovertarget="info-tip">
+    <Info className="h-4 w-4" />
+</Button>
+<div id="info-tip" popover className="p-3 rounded-lg shadow-lg bg-card border max-w-xs">
+    Dodatkowe informacje o tej funkcji.
+</div>
+```
+
+**Kiedy Popover API vs Radix Dialog:**
+- **Popover:** tooltips, dropdown menu, non-modal panele
+- **Dialog:** potwierdzenia, formularze wymagające uwagi, modalne okna
+
+---
+
 ## Formularze
 
-### React Hook Form + Zod (Standard 2025)
+### React Hook Form + Zod (Standard 2026)
 ```typescript
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -370,6 +389,55 @@ function SimpleForm() {
     );
 }
 ```
+
+### useActionState (React 19) — Proste Formularze
+```typescript
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
+
+function SubmitButton() {
+    const { pending } = useFormStatus();
+    return (
+        <Button type="submit" disabled={pending}>
+            {pending ? 'Wysyłanie...' : 'Wyślij'}
+        </Button>
+    );
+}
+
+function SimpleContactForm() {
+    const [state, submitAction, isPending] = useActionState(
+        async (_prev: { error: string | null }, formData: FormData) => {
+            const email = formData.get('email') as string;
+            try {
+                await api.subscribe(email);
+                return { error: null };
+            } catch {
+                return { error: 'Nie udało się zapisać' };
+            }
+        },
+        { error: null }
+    );
+
+    return (
+        <form action={submitAction}>
+            <Input name="email" type="email" required />
+            {state.error && (
+                <p role="alert" className="text-sm text-destructive">{state.error}</p>
+            )}
+            <SubmitButton />
+        </form>
+    );
+}
+```
+
+**Kiedy `useActionState` vs React Hook Form:**
+
+| `useActionState` | React Hook Form + Zod |
+|------|------|
+| Proste formularze (1-3 pola) | Złożone formularze (>3 pola) |
+| Brak client-side walidacji | Zaawansowana walidacja (Zod) |
+| Natywny `<form action>` | Kontrolowane komponenty |
+| Progressive enhancement | Wizard, dynamic fields, DevTools |
 
 ---
 

@@ -6,10 +6,11 @@ Wzorce autentykacji Supabase dla Vite SPA - OAuth, email/hasło, zarządzanie se
 
 ## Dostępne Metody Autentykacji
 
-### PKCE (Automatyczne)
+### PKCE (Proof Key for Code Exchange)
 
-Supabase JS v2 automatycznie obsługuje PKCE (Proof Key for Code Exchange) dla OAuth.
-Nie wymaga dodatkowej konfiguracji - biblioteka sama wymienia `code` z URL na sesję.
+Supabase JS v2 używa PKCE jako domyślnego flow OAuth. Po redirect z providera, URL zawiera parametr `code` ważny **5 minut** (jednorazowy). W callback musisz jawnie wywołać `exchangeCodeForSession(code)` — zobacz sekcję "Callback OAuth".
+
+PKCE obsługiwane dla: `signInWithOAuth`, `signInWithOtp`, `signUp`, `resetPasswordForEmail`.
 
 ### Google OAuth
 ```typescript
@@ -213,14 +214,19 @@ function MyComponent() {
 }
 ```
 
-### getSession vs getUser
+### getSession vs getUser vs getClaims
 
 | Metoda | Zachowanie | Kiedy używać |
 |--------|------------|--------------|
-| `getSession()` | Czyta token lokalnie (szybkie) | UI state, avatar, nawigacja |
-| `getUser()` | Weryfikuje z serwerem | Przed krytycznymi operacjami |
+| `getSession()` | Czyta token lokalnie (szybkie) | UI state, avatar, nawigacja. **Nie ufaj na serwerze!** |
+| `getUser()` | Weryfikuje z serwerem Auth | Przed krytycznymi operacjami (zmiana hasła, płatność) |
+| `getClaims()` | Weryfikuje JWT przez JWKS (cache) | **Preferowane server-side** — szybsze od `getUser()`, bez sieci |
 
-Hook `useAuth` używa `getSession()` dla szybkiego UI. Krytyczne operacje (zmiana hasła, płatność) powinny używać `getUser()` - zobacz `useProfile` poniżej.
+**Ważne:**
+- `getSession()` czyta token z localStorage — nie weryfikuje go. Nigdy nie używaj do autoryzacji server-side.
+- `getClaims()` dostępne dla projektów z asymetrycznymi kluczami JWT (domyślne od maja 2025). Weryfikuje JWT lokalnie przez WebCrypto API.
+
+Hook `useAuth` używa `getSession()` dla szybkiego UI. Krytyczne operacje powinny używać `getUser()` lub `getClaims()`.
 
 ---
 
@@ -241,17 +247,22 @@ export function AuthCallback() {
     useEffect(() => {
         const handleCallback = async () => {
             try {
-                // Supabase automatycznie przetwarza PKCE code z URL
-                const { data: { session }, error } = await supabase.auth.getSession();
+                // PKCE: Wymień code z URL na sesję
+                const code = new URL(window.location.href).searchParams.get('code');
 
-                if (error) {
-                    logger.error('OAuth callback error', error);
-                    navigate('/?error=auth');
-                    return;
+                if (code) {
+                    const { error } = await supabase.auth.exchangeCodeForSession(code);
+                    if (error) {
+                        logger.error('OAuth callback error', error);
+                        navigate('/?error=auth');
+                        return;
+                    }
                 }
 
+                // Sprawdź czy sesja istnieje (obsługuje też hash-based flow)
+                const { data: { session } } = await supabase.auth.getSession();
+
                 if (session?.user) {
-                    // Fallback - upewnij się że profil istnieje
                     await ensureUserProfile();
                 }
 
@@ -610,7 +621,9 @@ function ProfileSettings() {
 - [ ] OAuth users nie zmieniają hasła/emaila
 - [ ] `getUser()` przed krytycznymi operacjami
 
-**PKCE:** Obsługiwane automatycznie przez supabase-js v2 - nie wymaga konfiguracji.
+**PKCE:** Wymaga jawnego `exchangeCodeForSession(code)` w callback — zobacz [Callback OAuth](#callback-oauth).
+
+**Uwaga:** Pakiety `@supabase/auth-helpers-*` (nextjs, react, sveltekit, remix) są **deprecated**. Jedynym wspieranym rozwiązaniem SSR jest `@supabase/ssr`. Ten skill dotyczy Vite SPA (client-side), gdzie używamy bezpośrednio `@supabase/supabase-js`.
 
 **Zobacz Także:**
 - [database-patterns.md](database-patterns.md) - Tabela profiles

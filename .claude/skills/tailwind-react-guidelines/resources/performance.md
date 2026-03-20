@@ -21,11 +21,11 @@ const value = useMemo(() => a + b, [a, b]);
 
 ---
 
-## React Compiler (Opcjonalny)
+## React Compiler 1.0 (Rekomendowany)
 
-React Compiler automatycznie memoizuje komponenty i wartości. W Vite wymaga setup:
+React Compiler 1.0 (stabilny od Paź 2025) automatycznie memoizuje komponenty i wartości. W Vite wymaga setup:
 ```bash
-npm install babel-plugin-react-compiler
+npm install -D babel-plugin-react-compiler
 ```
 ```typescript
 // vite.config.ts
@@ -43,12 +43,12 @@ export default defineConfig({
 });
 ```
 
-**Z włączonym Compiler:**
-- `useMemo` / `useCallback` prawie zbędne
-- Compiler sam optymalizuje
+**Z Compiler 1.0 (rekomendowany setup):**
+- `useMemo` / `useCallback` zbędne — Compiler memoizuje automatycznie
 - Pisz zwykły kod, bez manualnej memoizacji
+- `React.memo()` zbędne — Compiler sam decyduje
 
-**Bez Compiler:**
+**Bez Compiler (legacy setup):**
 - Ręczna memoizacja nadal przydatna
 - Stosuj zasady z sekcji poniżej
 
@@ -184,6 +184,62 @@ function useAddFavorite() {
 - Background refresh
 - Retry logic
 - DevTools
+
+### useSuspenseQuery (Suspense-based)
+
+Alternatywa dla early returns — data jest zawsze zdefiniowane:
+```typescript
+import { useSuspenseQuery } from '@tanstack/react-query';
+
+function TemplateList() {
+    // data jest ZAWSZE zdefiniowane (nigdy undefined)
+    const { data } = useSuspenseQuery({
+        queryKey: ['templates'],
+        queryFn: fetchTemplates,
+        staleTime: 5 * 60 * 1000,
+    });
+
+    // Nie potrzebujesz: if (isLoading)... if (error)...
+    return <Grid templates={data} />;
+}
+
+// Parent musi mieć Suspense + ErrorBoundary
+<ErrorBoundary FallbackComponent={ErrorFallback}>
+    <Suspense fallback={<TemplateListSkeleton />}>
+        <TemplateList />
+    </Suspense>
+</ErrorBoundary>
+```
+
+**Kiedy `useSuspenseQuery` vs `useQuery`:**
+
+| `useSuspenseQuery` | `useQuery` |
+|---------|---------|
+| Data zawsze zdefiniowane | Data może być undefined |
+| Suspense + ErrorBoundary obsługują stany | Early returns w komponencie |
+| Czystszy kod komponentu | Więcej kontroli nad UI stanami |
+| Wymaga parent boundaries | Samodzielny komponent |
+
+### queryOptions Helper
+
+Reużywalne query configs z type-safety:
+```typescript
+import { queryOptions } from '@tanstack/react-query';
+
+function templateOptions(id: string) {
+    return queryOptions({
+        queryKey: ['template', id],
+        queryFn: () => api.getTemplate(id),
+        staleTime: 5 * 60 * 1000,
+    });
+}
+
+// Reużywalne wszędzie:
+useQuery(templateOptions(id));
+useSuspenseQuery(templateOptions(id));
+queryClient.prefetchQuery(templateOptions(id));
+queryClient.setQueryData(templateOptions(id).queryKey, newData);
+```
 
 ### useOptimistic (React 19)
 
@@ -449,7 +505,7 @@ onCLS(console.log);
 
 ### Formaty (priorytet)
 
-1. **AVIF** - najlepsza kompresja, szeroko wspierane (2025)
+1. **AVIF** - najlepsza kompresja, szeroko wspierane (2026)
 2. **WebP** - fallback
 3. **JPEG/PNG** - legacy fallback
 

@@ -95,8 +95,8 @@ USING (true);
 CREATE POLICY "profiles_update_own"
 ON profiles FOR UPDATE
 TO authenticated
-USING (auth.uid() = id)
-WITH CHECK (auth.uid() = id);
+USING ((SELECT auth.uid()) = id)
+WITH CHECK ((SELECT auth.uid()) = id);
 ```
 
 ### Tabela posts (własność użytkownika)
@@ -128,26 +128,26 @@ USING (published = true);
 CREATE POLICY "posts_select_own"
 ON posts FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 
 -- Autor może tworzyć
 CREATE POLICY "posts_insert_own"
 ON posts FOR INSERT
 TO authenticated
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- Autor może aktualizować
 CREATE POLICY "posts_update_own"
 ON posts FOR UPDATE
 TO authenticated
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id)
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- Autor może usuwać
 CREATE POLICY "posts_delete_own"
 ON posts FOR DELETE
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 ```
 
 ### Tabela comments (relacja)
@@ -183,13 +183,13 @@ USING (
 CREATE POLICY "comments_insert_authenticated"
 ON comments FOR INSERT
 TO authenticated
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- Autor może usuwać swoje komentarze
 CREATE POLICY "comments_delete_own"
 ON comments FOR DELETE
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 ```
 
 ### Tabela bookmarks (many-to-many)
@@ -213,19 +213,19 @@ ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "bookmarks_select_own"
 ON bookmarks FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 
 -- Użytkownik może dodawać swoje
 CREATE POLICY "bookmarks_insert_own"
 ON bookmarks FOR INSERT
 TO authenticated
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- Użytkownik może usuwać swoje
 CREATE POLICY "bookmarks_delete_own"
 ON bookmarks FOR DELETE
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 ```
 
 ### Tabela audit_log (tylko zapis)
@@ -254,11 +254,9 @@ ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
 -- Tylko service_role może czytać (ochrona prywatności)
 -- Brak SELECT policy dla authenticated
 
--- Authenticated może dodawać własne wpisy
-CREATE POLICY "audit_insert_own"
-ON audit_log FOR INSERT
-TO authenticated
-WITH CHECK (auth.uid() = user_id);
+-- BRAK policies INSERT/UPDATE/DELETE dla authenticated
+-- Wpisy WYŁĄCZNIE przez: SECURITY DEFINER functions, triggery, service_role
+-- Zobacz: security.md → Audit Logging
 
 -- Brak UPDATE/DELETE - audit log jest immutable
 ```
@@ -282,26 +280,26 @@ USING (true);
 CREATE POLICY "own_select"
 ON table_name FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 
 -- INSERT
 CREATE POLICY "own_insert"
 ON table_name FOR INSERT
 TO authenticated
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- UPDATE
 CREATE POLICY "own_update"
 ON table_name FOR UPDATE
 TO authenticated
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id)
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- DELETE
 CREATE POLICY "own_delete"
 ON table_name FOR DELETE
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 ```
 
 ### 3. Warunkowy Dostęp (np. published)
@@ -312,7 +310,7 @@ ON posts FOR SELECT
 TO authenticated
 USING (
     published = true
-    OR auth.uid() = user_id
+    OR (SELECT auth.uid()) = user_id
 );
 ```
 
@@ -326,7 +324,7 @@ USING (
     EXISTS (
         SELECT 1 FROM posts
         WHERE posts.id = comments.post_id
-        AND (posts.published = true OR posts.user_id = auth.uid())
+        AND (posts.published = true OR posts.user_id = (SELECT auth.uid()))
     )
 );
 ```
@@ -624,23 +622,23 @@ USING (published = true);
 CREATE POLICY "posts_select_own"
 ON posts FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 
 CREATE POLICY "posts_insert_own"
 ON posts FOR INSERT
 TO authenticated
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 CREATE POLICY "posts_update_own"
 ON posts FOR UPDATE
 TO authenticated
-USING (auth.uid() = user_id)
-WITH CHECK (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id)
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 CREATE POLICY "posts_delete_own"
 ON posts FOR DELETE
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 ```
 
 ### Komendy Migracji
@@ -724,13 +722,20 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name, avatar_url)
+    INSERT INTO public.profiles (id, email, full_name, avatar_url, created_at, updated_at)
     VALUES (
         NEW.id,
         NEW.email,
         NEW.raw_user_meta_data->>'full_name',
-        NEW.raw_user_meta_data->>'avatar_url'
-    );
+        NEW.raw_user_meta_data->>'avatar_url',
+        NOW(),
+        NOW()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = COALESCE(EXCLUDED.full_name, profiles.full_name),
+        avatar_url = COALESCE(EXCLUDED.avatar_url, profiles.avatar_url),
+        updated_at = NOW();
     RETURN NEW;
 END;
 $$;
@@ -754,8 +759,8 @@ CREATE TRIGGER on_auth_user_created
 
 **Wzorce RLS:**
 - Public read: `USING (true)`
-- Own data: `USING (auth.uid() = user_id)`
-- Conditional: `USING (published = true OR auth.uid() = user_id)`
+- Own data: `USING ((SELECT auth.uid()) = user_id)`
+- Conditional: `USING (published = true OR (SELECT auth.uid()) = user_id)`
 - Relational: `USING (EXISTS (SELECT 1 FROM ...))`
 - Service only: Brak policies
 

@@ -3,27 +3,7 @@
     "dev-browser@dev-browser-marketplace": true
   },
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "TodoWrite",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 /Users/kacper_trzepiecinski/Documents/kodowanie/n8n_dashboard/.claude/hooks/context-guardian.py"
-          }
-        ]
-      },
-       {
-        "matcher": "Edit|MultiEdit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-use-tracker.sh"
-          }
-        ]
-      }
-    ],
-        "UserPromptSubmit": [
+    "UserPromptSubmit": [
       {
         "hooks": [
           {

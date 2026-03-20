@@ -43,6 +43,44 @@ function TemplateList() {
 - Każdy stan ma dedykowany UI
 - TypeScript narrowing - po checkach `data` jest zdefiniowane
 
+### useSuspenseQuery (Preferowane dla nowych komponentów)
+
+Eliminuje potrzebę early returns — data zawsze zdefiniowane:
+```typescript
+import { useSuspenseQuery } from '@tanstack/react-query';
+
+function TemplateList() {
+    const { data } = useSuspenseQuery({
+        queryKey: ['templates'],
+        queryFn: api.getTemplates,
+    });
+
+    // Brak potrzeby: if (isLoading)... if (error)...
+    if (!data.length) return <EmptyState />;
+
+    return (
+        <div className="grid gap-4">
+            {data.map(template => (
+                <TemplateCard key={template.id} template={template} />
+            ))}
+        </div>
+    );
+}
+
+// Parent obsługuje loading i error:
+<ErrorBoundary FallbackComponent={ErrorFallback}>
+    <Suspense fallback={<TemplateListSkeleton />}>
+        <TemplateList />
+    </Suspense>
+</ErrorBoundary>
+```
+
+**Różnica od early returns:**
+- Komponent jest czystszy (tylko logika prezentacji)
+- Loading/error obsługiwane przez parent boundaries
+- `data` jest zawsze zdefiniowane na poziomie typów
+- Granice Suspense mogą być współdzielone między komponentami
+
 ### ⚠️ Nie używaj useEffect do fetchingu
 ```typescript
 // ❌ Anty-wzorzec
@@ -274,31 +312,44 @@ function SubmitButton({ onSubmit }: { onSubmit: () => Promise<void> }) {
 }
 ```
 
-### useFormStatus (ograniczone w SPA)
+### useFormStatus + useActionState (React 19)
 
-`useFormStatus` wymaga `<form action={...}>` - działa głównie z Server Actions.
+`useFormStatus` wymaga `<form action={...}>`. W React 19 używaj razem z `useActionState`:
 
-W Vite SPA użyteczne tylko z native form submission:
 ```typescript
+import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
-    
     return (
-        <button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending}>
             {pending ? 'Wysyłanie...' : 'Wyślij'}
-        </button>
+        </Button>
     );
 }
 
-// Wymaga <form action={...}> jako parent
-<form action={handleSubmit}>
-    <SubmitButton />
-</form>
+function SimpleContactForm() {
+    const [state, submitAction, isPending] = useActionState(
+        async (_prev: State, formData: FormData) => {
+            const result = await api.sendContact(Object.fromEntries(formData));
+            return result;
+        },
+        { error: null }
+    );
+
+    return (
+        <form action={submitAction}>
+            <Input name="name" required />
+            <Input name="email" type="email" required />
+            {state.error && <p className="text-destructive">{state.error}</p>}
+            <SubmitButton />
+        </form>
+    );
+}
 ```
 
-**Dla Vite SPA:** React Query `isPending` lub `useTransition` są bardziej elastyczne.
+**Dla złożonych formularzy:** React Hook Form + Zod pozostaje lepszym wyborem (walidacja, DevTools, dynamic fields).
 
 ---
 

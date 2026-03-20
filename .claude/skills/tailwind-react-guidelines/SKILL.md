@@ -7,7 +7,7 @@ description: Frontend React 19 + TypeScript 5.7+ + TailwindCSS v4 + shadcn/ui dl
 
 ## Cel
 
-Przewodnik dla Vite + React 19 SPA - nowoczesny stack zgodny ze standardami 2025.
+Przewodnik dla Vite + React 19 SPA - nowoczesny stack zgodny ze standardami Marzec 2026.
 
 ## Kiedy Używać Tego Skilla
 
@@ -33,16 +33,19 @@ Przewodnik dla Vite + React 19 SPA - nowoczesny stack zgodny ze standardami 2025
 - [ ] Default export na dole (dla lazy loading)
 
 ### Memoizacja
-- [ ] **Z React Compiler:** Nie używaj useCallback/useMemo - Compiler optymalizuje automatycznie
+- [ ] **React Compiler 1.0 (rekomendowany):** Nie używaj useCallback/useMemo - Compiler optymalizuje automatycznie
 - [ ] **Bez React Compiler:** useCallback tylko gdy przekazujesz handler do `memo()` child
 
 ### Data Fetching
 - [ ] React Query (`useQuery`, `useMutation`) - nie useEffect
+- [ ] `useSuspenseQuery` dla Suspense-based data fetching (data zawsze zdefiniowane)
+- [ ] `queryOptions()` helper dla reużywalnych query configs
 - [ ] Early returns: loading → error → empty → data
 - [ ] `toast.promise()` dla feedback użytkownika
 
 ### Formularze
-- [ ] React Hook Form + Zod (`zodResolver`)
+- [ ] React Hook Form + Zod (`zodResolver`) — złożone formularze
+- [ ] `useActionState` (React 19) — proste formularze bez RHF
 - [ ] `aria-invalid` i `aria-describedby` dla a11y
 - [ ] `useMutation` dla submit
 
@@ -136,7 +139,7 @@ Vitest + React Testing Library + MSW v2. Testy komponentów, hooków React Query
 ---
 
 ### Wydajność
-React Compiler (opcjonalny), React Query caching, useTransition, useOptimistic, lazy loading.
+React Compiler 1.0 (rekomendowany), React Query caching, useTransition, useOptimistic, lazy loading.
 **[Pełny przewodnik: resources/performance.md](resources/performance.md)**
 
 ---
@@ -147,11 +150,11 @@ Strict mode, `moduleResolution: "bundler"`, inline type imports, `satisfies` ope
 
 ---
 
-## Główne Zasady 2025
+## Główne Zasady 2026
 
-1. **React Query dla data fetchingu** - nie useEffect
-2. **React Hook Form + Zod dla formularzy** - nie useState dla każdego pola
-3. **Memoizacja warunkowa** - z React Compiler: żadna; bez: tylko dla memo children
+1. **React Query dla data fetchingu** - nie useEffect; `useSuspenseQuery` dla Suspense
+2. **React Hook Form + Zod dla formularzy** - `useActionState` dla prostych; nie useState
+3. **React Compiler 1.0** - standardowo włączony; bez Compiler: memoizacja tylko dla memo children
 4. **Suspense dla lazy components** - nie dla data (React Query obsługuje)
 5. **Tailwind v4** - konfiguracja w CSS (`@theme`), OKLCH colors
 6. **TypeScript strict** - no `any`, Zod dla runtime validation

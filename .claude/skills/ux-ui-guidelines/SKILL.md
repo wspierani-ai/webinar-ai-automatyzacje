@@ -1,13 +1,13 @@
 ---
 name: ux-ui-guidelines
-description: Wytyczne UX/UI dla React 19 + Tailwind v4. Design system (OKLCH colors), dostępność (WCAG 2.2, ARIA), responsive design (mobile-first, container queries), animacje (Framer Motion, View Transitions, prefers-reduced-motion), UI patterns (navigation, tables, search, onboarding). Używaj przy projektowaniu UI, dostępności, animacjach, mobile UX.
+description: Wytyczne UX/UI dla React 19 + Tailwind v4. Design system (OKLCH colors), dostępność (WCAG 2.2, ARIA), responsive design (mobile-first, container queries), animacje (Motion, View Transitions, prefers-reduced-motion), UI patterns (navigation, tables, search, onboarding). Używaj przy projektowaniu UI, dostępności, animacjach, mobile UX.
 ---
 
 # UX/UI Guidelines
 
 ## Cel
 
-Przewodnik dla projektowania interfejsu użytkownika - design system, dostępność, responsywność, animacje, wzorce UI zgodne ze standardami 2025.
+Przewodnik dla projektowania interfejsu użytkownika - design system, dostępność, responsywność, animacje, wzorce UI zgodne ze standardami Marzec 2026.
 
 ## Kiedy Używać Tego Skilla
 
@@ -29,10 +29,11 @@ Przewodnik dla projektowania interfejsu użytkownika - design system, dostępno�
 - [ ] Container queries dla komponentów (`@container`)
 - [ ] Focus visible dla nawigacji klawiaturą
 - [ ] ARIA labels dla elementów interaktywnych
-- [ ] Touch targets min 44x44px (WCAG 2.2)
+- [ ] Touch targets min 24x24px (WCAG 2.2 AA), rekomendowane 44x44px (AAA)
 - [ ] `prefers-reduced-motion` dla animacji
 - [ ] Contrast ratio min 4.5:1 (WCAG AA)
 - [ ] Dynamic viewport units (`min-h-dvh`)
+- [ ] `<search>` element dla obszarów wyszukiwania
 
 ### Checklist Formularza
 
@@ -151,12 +152,12 @@ min-h-lvh  /* large viewport height */
 
 ### Animacje
 
-**Framer Motion Wzorce:**
+**Motion (dawniej Framer Motion) Wzorce:**
 - Fade in dla wchodzących elementów
 - Staggered lists dla grup
 - AnimatePresence dla mount/unmount
 
-**View Transitions API (2025):**
+**View Transitions API (Baseline 2025):**
 ```typescript
 function handleNavigation() {
     if (!document.startViewTransition) {
@@ -216,7 +217,7 @@ function handleNavigation() {
 
 ---
 
-## Przykład: Komponent Button (2025)
+## Przykład: Komponent Button (2026)
 ```typescript
 import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -268,13 +269,13 @@ export function ActionButton({ onClick, children, disabled }: ActionButtonProps)
 | Kolory, typografia, spacing, ikony | [design-system.md](resources/design-system.md) |
 | WCAG 2.2, ARIA, dostępność | [accessibility.md](resources/accessibility.md) |
 | Mobile-first, container queries, mobile patterns | [responsive-design.md](resources/responsive-design.md) |
-| Framer Motion, View Transitions | [animations.md](resources/animations.md) |
+| Motion, View Transitions | [animations.md](resources/animations.md) |
 | Modale, formularze, feedback | [component-ux.md](resources/component-ux.md) |
 | Tabs, breadcrumbs, tables, search, onboarding | [patterns.md](resources/patterns.md) |
 
 ---
 
-## Główne Zasady 2025
+## Główne Zasady 2026
 
 1. **Mobile-First** + Container Queries
 2. **WCAG 2.2** jako minimum (nowe: focus-not-obscured, target size)
@@ -285,6 +286,8 @@ export function ActionButton({ onClick, children, disabled }: ActionButtonProps)
 7. **prefers-reduced-motion** obowiązkowo
 8. **useTransition** dla loading states (nie useState)
 9. **View Transitions** dla nawigacji (z fallbackiem)
+10. **Popover API** dla tooltipów i non-modal popovers (natywny)
+11. **`<search>` element** zamiast `role="search"`
 
 ---
 

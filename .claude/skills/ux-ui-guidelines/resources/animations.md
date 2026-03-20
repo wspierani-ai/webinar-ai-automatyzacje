@@ -1,14 +1,27 @@
 # Animacje
 
-Framer Motion, View Transitions API, CSS animations - standardy 2025.
+Motion (dawniej Framer Motion), View Transitions API, CSS animations - standardy 2026.
 
 ---
 
-## Framer Motion
+## Motion (dawniej Framer Motion)
 
 ### Import
 ```typescript
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+// Nowy pakiet (rekomendowany dla nowych projektów)
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+
+// Stary pakiet (nadal działa, re-eksport z motion)
+// import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+```
+
+**Migracja:** Pakiet `framer-motion` został przemianowany na `motion` (v12.x). Import zmieniony z `framer-motion` na `motion/react`. Stary pakiet nadal działa bez zmian.
+```bash
+# Nowe projekty
+npm install motion
+
+# Istniejące projekty — brak zmian wymaganych
+# framer-motion jest re-eksportem z motion
 ```
 
 ### Podstawowe Animacje
@@ -217,7 +230,7 @@ const isTouch = window.matchMedia('(hover: none)').matches;
 
 ---
 
-## View Transitions API (2025)
+## View Transitions API (Baseline Newly Available)
 
 ### Nawigacja z Transition
 ```typescript
@@ -301,13 +314,21 @@ function useSupportsViewTransitions() {
 }
 ```
 
+**Wsparcie przeglądarek (2026):**
+| Przeglądarka | Same-document | Cross-document |
+|-------------|--------------|----------------|
+| Chrome | 111+ | 126+ |
+| Safari | 18+ | 18.2+ |
+| Firefox | 133+ | Brak |
+| Edge | 111+ | 126+ |
+
 ---
 
 ## prefers-reduced-motion
 
-### Framer Motion Hook (Wbudowany)
+### Motion Hook (Wbudowany)
 ```typescript
-import { useReducedMotion } from 'framer-motion';
+import { useReducedMotion } from 'motion/react';
 
 function AnimatedCard({ children }: Props) {
     const shouldReduceMotion = useReducedMotion();
@@ -440,6 +461,8 @@ function Card({ children }: Props) {
 const supportsScrollTimeline = CSS.supports('animation-timeline', 'view()');
 ```
 
+**Wsparcie (2026):** Chrome 115+, Edge 115+, Safari 26+ (nowe!), Firefox za flagą. Globalne pokrycie ~83-85%. Stosuj jako progressive enhancement.
+
 ### Fallback z Intersection Observer
 ```typescript
 function useScrollReveal() {
@@ -478,6 +501,44 @@ function RevealSection({ children }: Props) {
     );
 }
 ```
+
+---
+
+## CSS Entry Animations (@starting-style)
+
+Natywne animacje wejścia z `display: none` — bez hacków JS. **Baseline Newly Available** (Chrome 117+, Safari 17.5+, Firefox 129+).
+
+### Dialog/Popover Animation
+```css
+/* globals.css */
+dialog[open] {
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.3s, transform 0.3s,
+        display 0.3s allow-discrete,
+        overlay 0.3s allow-discrete;
+
+    @starting-style {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+}
+```
+
+### Tailwind v4.1+ (starting variant)
+```typescript
+<div className="starting:opacity-0 starting:scale-95 transition-all duration-300">
+    Content with entry animation
+</div>
+```
+
+### Kiedy `@starting-style` vs Motion
+| `@starting-style` | Motion (dawniej Framer Motion) |
+|-------------------|----------------------|
+| Proste enter/exit | Złożone sekwencje |
+| Natywne dialog/popover | Staggered lists |
+| Zero JS, zero bundle | Gestures, springs |
+| CSS-only | Layout animations |
 
 ---
 
@@ -534,7 +595,7 @@ function LoadingDots() {
 
 ## Collapsible / Accordion
 ```typescript
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 
 interface CollapsibleProps {
     isOpen: boolean;
@@ -626,11 +687,12 @@ transition={{ duration: 0.3 }}  // modals
 
 | Technika | Użycie |
 |----------|--------|
-| **Framer Motion** | Kompleksowe animacje, staggered lists |
+| **Motion** (dawniej Framer Motion) | Kompleksowe animacje, staggered lists |
 | **CSS transitions** | Proste hover, focus states |
 | **View Transitions** | Nawigacja między stronami |
 | **Scroll-driven** | Reveal on scroll |
 | **AnimatePresence** | Mount/unmount animations |
+| **@starting-style** | Natywne entry animations (dialog, popover) |
 
 | Zasada | Standard |
 |--------|----------|

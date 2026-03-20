@@ -32,19 +32,19 @@ USING (true);
 CREATE POLICY "own_data_select"
 ON bookmarks FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 
 -- Użytkownik może dodawać tylko swoje dane
 CREATE POLICY "own_data_insert"
 ON bookmarks FOR INSERT
 TO authenticated
-WITH CHECK (auth.uid() = user_id);
+WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- Użytkownik może usuwać tylko swoje dane
 CREATE POLICY "own_data_delete"
 ON bookmarks FOR DELETE
 TO authenticated
-USING (auth.uid() = user_id);
+USING ((SELECT auth.uid()) = user_id);
 ```
 
 #### Warunkowy Dostęp
@@ -55,7 +55,7 @@ ON posts FOR SELECT
 TO authenticated
 USING (
     published = true
-    OR auth.uid() = user_id
+    OR (SELECT auth.uid()) = user_id
 );
 ```
 
@@ -67,7 +67,7 @@ USING (
 CREATE POLICY "payments_select_own"
 ON payments FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id);  -- Zawsze UUID, nie email!
+USING ((SELECT auth.uid()) = user_id);  -- Zawsze UUID, nie email!
 
 -- Brak policies INSERT/UPDATE/DELETE dla authenticated
 -- Tylko service_role (Edge Function) może modyfikować
@@ -105,6 +105,17 @@ BEGIN
     INSERT INTO protected_table ...;
 END;
 $$;
+```
+
+### Widoki a RLS (PostgreSQL 15+)
+
+W PostgreSQL < 15 widoki domyślnie działają jako SECURITY DEFINER (omijają RLS). Od PostgreSQL 15+ możesz użyć `security_invoker = true`:
+
+```sql
+-- Widok respektujący RLS (PostgreSQL 15+)
+CREATE VIEW public.published_posts
+WITH (security_invoker = true)
+AS SELECT * FROM posts WHERE published = true;
 ```
 
 ### Przykład: Usuwanie Konta

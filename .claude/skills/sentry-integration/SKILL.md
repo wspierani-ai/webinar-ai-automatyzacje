@@ -7,10 +7,10 @@ description: Sentry error tracking i performance monitoring dla React + Supabase
 
 Kompleksowy przewodnik integracji Sentry error tracking i performance monitoring dla projektu React + Supabase Edge Functions.
 
-> **📅 Ostatnia aktualizacja: Grudzień 2025**
+> **📅 Ostatnia aktualizacja: Marzec 2026**
 >
-> - **React SDK:** v8+ (funkcyjne integracje) ✅
-> - **Edge Functions:** Ograniczone wsparcie ⚠️ (wymaga `withScope`)
+> - **React SDK:** v10+ (funkcyjne integracje, React 19 error hooks) ✅
+> - **Edge Functions:** Ograniczone wsparcie ⚠️ (wymaga `withScope` + `flush`)
 
 ## Table of Contents
 

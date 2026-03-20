@@ -27,7 +27,7 @@ Kompleksowy przewodnik dla pracy z Supabase w aplikacjach Vite SPA - autentykacj
 - [ ] Utwórz tabelę w migracji SQL
 - [ ] Włącz RLS: `ALTER TABLE tablename ENABLE ROW LEVEL SECURITY`
 - [ ] Zdefiniuj RLS policies dla SELECT, INSERT, UPDATE, DELETE
-- [ ] Używaj `auth.uid()` w policies (nie email)
+- [ ] Używaj `(SELECT auth.uid())` w policies (nie email) — subquery dla wydajności
 - [ ] Dodaj indeksy dla często używanych kolumn
 - [ ] Wygeneruj typy: `supabase gen types typescript --local > src/types/database.ts`
 - [ ] Utwórz funkcje API w `lib/supabase.ts`
@@ -55,7 +55,7 @@ Kompleksowy przewodnik dla pracy z Supabase w aplikacjach Vite SPA - autentykacj
 
 ## Klient Supabase
 
-### Typed Client (Standard 2025)
+### Typed Client (Standard 2026)
 ```typescript
 // lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
@@ -126,11 +126,11 @@ const { data, error } = await supabase.rpc('ensure_user_profile');
 - Email/hasło
 
 **Kluczowe Koncepcje:**
-- PKCE automatycznie obsługiwane przez supabase-js v2
+- PKCE z jawnym `exchangeCodeForSession(code)` w callback
 - Hook `useAuth()` zarządza sesją
 - Trigger `handle_new_user()` tworzy rekord w `public.profiles`
 - Funkcja `ensure_user_profile()` jako fallback
-- `getSession()` dla UI, `getUser()` dla krytycznych operacji
+- `getSession()` dla UI, `getUser()` lub `getClaims()` dla krytycznych operacji
 
 **[Pełny Przewodnik: resources/auth-patterns.md](resources/auth-patterns.md)**
 
@@ -147,8 +147,8 @@ const { data, error } = await supabase.rpc('ensure_user_profile');
 
 **RLS Patterns:**
 - Public read: `USING (true)`
-- Own data: `USING (auth.uid() = user_id)`
-- Conditional: `USING (published = true OR auth.uid() = user_id)`
+- Own data: `USING ((SELECT auth.uid()) = user_id)`
+- Conditional: `USING (published = true OR (SELECT auth.uid()) = user_id)`
 - Service only: brak policies (tylko service_role)
 
 **[Pełny Przewodnik: resources/database-patterns.md](resources/database-patterns.md)**
@@ -162,11 +162,13 @@ const { data, error } = await supabase.rpc('ensure_user_profile');
 - Integracje z zewnętrznymi API
 - Operacje wymagające service_role
 
-**Wzorce 2025:**
+**Wzorce 2026:**
 - `Deno.serve()` (wbudowane, bez importu)
 - `jsr:@supabase/supabase-js@2` (nie esm.sh)
 - `npm:stripe@17` (nie esm.sh)
 - `constructEventAsync` dla Stripe webhooks
+- Runtime: **Deno 2.x** (upgrade z 1.45.2)
+- `deno.json` preferowany nad import maps
 
 **[Pełny Przewodnik: resources/edge-functions.md](resources/edge-functions.md)**
 
@@ -205,6 +207,7 @@ const { data, error } = await supabase.rpc('ensure_user_profile');
 | Edge Functions | [edge-functions.md](resources/edge-functions.md) |
 | Bezpieczeństwo | [security.md](resources/security.md) |
 | Realtime subscriptions | [realtime.md](resources/realtime.md) |
+| Supabase CLI | [cli-guide.md](resources/cli-guide.md) |
 
 ---
 
@@ -256,6 +259,10 @@ console.error('DB error:', error);  // Wycieka info o strukturze DB
 
 // ❌ Stary import w Edge Functions
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+
+// ❌ getSession() do autoryzacji server-side
+const { data: { session } } = await supabase.auth.getSession();
+if (session) { /* autoryzacja */ }  // Token nie jest zweryfikowany!
 ```
 
 ### Preferuj
@@ -274,8 +281,12 @@ logger.error('Błąd operacji', error);
 
 // ✅ Nowy standard Edge Functions
 Deno.serve(async (req) => { ... });
+
+// ✅ getUser() lub getClaims() do autoryzacji
+const { data: { user } } = await supabase.auth.getUser();
+if (user) { /* autoryzacja */ }
 ```
 
 ---
 
-**Status Skilla**: Modułowa struktura z progressive loading dla optymalnego zarządzania kontekstem. Zaktualizowany do standardów 2025.
+**Status Skilla**: Modułowa struktura z progressive loading dla optymalnego zarządzania kontekstem. Zaktualizowany do standardów Marzec 2026.

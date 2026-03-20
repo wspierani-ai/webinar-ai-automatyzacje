@@ -24,6 +24,35 @@ Techniki dawania feedbacku i pisania komentarzy w code review.
 
 ---
 
+## Filozofia review
+
+### Istniejący kod vs nowy kod
+
+Nie wszystkie zmiany zasługują na ten sam poziom surowości:
+
+| Typ zmiany | Podejście | Kiedy blokuj |
+|------------|-----------|--------------|
+| Modyfikacja istniejącego pliku | Surowe — każda dodana złożoność wymaga uzasadnienia | Zawsze gdy komplikuje |
+| Nowy izolowany moduł/komponent | Pragmatyczne — jeśli działa i jest testowalny | Tylko przy [blocking] |
+| Refaktor istniejącego kodu | Najsurowsze — weryfikuj że nic nie łamie | Przy regresji lub utracie testów |
+
+### 5-sekundowa reguła nazewnictwa
+
+Jeśli nie rozumiesz co robi funkcja/komponent w 5 sekund od przeczytania nazwy — to zła nazwa.
+
+- FAIL: `doStuff`, `handleData`, `process`, `Manager`
+- PASS: `validateUserEmail`, `fetchUserProfile`, `transformApiResponse`
+
+### Sygnały do ekstrakcji modułu
+
+Rozważ ekstrakcję do osobnego modułu gdy widzisz 2+ z:
+- Złożone reguły biznesowe (nie "jest długie", ale "robi za dużo rzeczy naraz")
+- Wiele obowiązków w jednej funkcji/pliku
+- Interakcja z zewnętrznym API lub złożony async
+- Logika którą chciałbyś reużywać w innych komponentach
+
+---
+
 ## Techniki feedbacku
 
 ### 1. Question Approach
@@ -62,22 +91,24 @@ Struktura dla złożonych komentarzy:
 ````markdown
 **Kontekst:** Widzę że używasz `useEffect` do fetchowania danych.
 
-**Problem:** W React 19 z Server Components lepiej
-fetchować dane na serwerze lub użyć `use()` hook.
+**Problem:** `useEffect` + `useState` do fetch nie obsługuje cache,
+dedup, retry ani background refetch. Użyj React Query.
 
 **Propozycja:**
 ```typescript
-// Server Component - preferowane
-async function UserProfile({ id }: Props) {
-  const user = await getUser(id);
+// useSuspenseQuery + Suspense — preferowane
+function UserProfile({ id }: Props) {
+  const { data: user } = useSuspenseQuery({
+    queryKey: ["users", id],
+    queryFn: () => getUser(id),
+  });
   return <div>{user.name}</div>;
 }
 
-// lub Client Component z use()
-function UserProfile({ userPromise }: Props) {
-  const user = use(userPromise);
-  return <div>{user.name}</div>;
-}
+// Użycie:
+<Suspense fallback={<ProfileSkeleton />}>
+  <UserProfile id={userId} />
+</Suspense>
 ```
 
 Daj znać jeśli potrzebujesz pomocy z migracją.
@@ -121,17 +152,17 @@ Musi być naprawione przed merge. Używaj dla:
 - Bugów powodujących crash
 - Wycieków danych
 - Złamania wymagań krytycznych
-- Brak `await` na params/searchParams (Next.js 15+)
-- Brak `await` na zapytaniach Drizzle
+- Brak RLS policies na tabelach Supabase
+- Brak captureException w catch blokach
 ````markdown
 🔴 [blocking] **src/actions/payment.ts:45**
 SQL injection vulnerability — input nie jest walidowany.
 Użyj prepared statement lub Zod validation.
 ````
 ````markdown
-🔴 [blocking] **src/app/blog/[slug]/page.tsx:8**
-Brak await na params — kod crashnie w Next.js 15+.
-Zmień `const slug = params.slug` na `const { slug } = await params`.
+🔴 [blocking] **supabase/migrations/001_users.sql**
+Tabela `users` nie ma włączonego RLS — dane wszystkich użytkowników są publicznie dostępne.
+Dodaj `ALTER TABLE users ENABLE ROW LEVEL SECURITY` i odpowiednie polityki.
 ````
 
 ### 🟠 [important] — Wymaga poprawy
@@ -144,12 +175,12 @@ Powinno być naprawione, ale można dyskutować. Używaj dla:
 ````markdown
 🟠 [important] **src/components/UserList.tsx:23**
 N+1 query — fetchujesz użytkowników w pętli.
-Rozważ `db.batch()` lub query z `with` relacją.
+Rozważ `supabase batch operations` lub query z `with` relacją.
 ````
 ````markdown
 🟠 [important] **src/hooks/useData.ts:12**
-useEffect do fetchowania danych — w React 19 lepiej
-użyć Server Components lub `use()` hook.
+useEffect do fetchowania danych — użyj
+React Query (`useQuery` / `useSuspenseQuery`).
 ````
 
 ### 🟡 [nit] — Drobiazg
@@ -187,9 +218,9 @@ zamiast JS hacka do auto-growing textarea.
 
 Wyjaśnienie bez wymaganej akcji:
 ````markdown
-💡 [learning] **src/app/page.tsx:5**
-FYI: W Next.js 15+ fetch domyślnie ma `no-store`.
-Jeśli chcesz cache, dodaj `{ cache: 'force-cache' }`.
+💡 [learning] **src/hooks/useItems.ts:5**
+FYI: React Query domyślnie cache'uje dane na 0ms (staleTime).
+Ustaw `staleTime: 5 * 60 * 1000` dla rzadko zmieniających się danych.
 ````
 
 ### 🎉 [praise] — Pochwała
@@ -200,8 +231,8 @@ Doceniaj dobre rozwiązania:
 Świetne użycie `useOptimistic()` — UX jest znacznie lepszy!
 ````
 ````markdown
-🎉 [praise] **src/db/schema.ts**
-Czyste relacje i dobre indeksy. Widać przemyślany schemat.
+🎉 [praise] **src/lib/supabase.ts**
+Czysta konfiguracja klienta z typami. Widać przemyślane podejście.
 ````
 
 ---

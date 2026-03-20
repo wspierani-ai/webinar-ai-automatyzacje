@@ -35,6 +35,9 @@ export default defineConfig({
         environment: 'jsdom',
         setupFiles: ['./src/test/setup.ts'],
         include: ['src/**/*.{test,spec}.{ts,tsx}'],
+        // Vitest 4.x - opcje pool na top-level
+        clearMocks: true,
+        restoreMocks: true,
         coverage: {
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
@@ -94,6 +97,34 @@ afterAll(() => server.close());
 }
 ```
 
+### Vitest 4.x — Breaking Changes
+
+W Vitest 4.0 zmieniono konfigurację pool:
+```typescript
+// Vitest 3.x
+export default defineConfig({
+    test: {
+        pool: 'forks',
+        poolOptions: { forks: { execArgv: ['--expose-gc'] } },
+    },
+});
+
+// Vitest 4.x
+export default defineConfig({
+    test: {
+        pool: 'forks',
+        execArgv: ['--expose-gc'],
+        isolate: false,
+    },
+});
+```
+
+Inne zmiany w v4:
+- `workspace` → `projects` (nowa nazwa opcji)
+- `poolOptions.threads.maxThreads` → `maxWorkers` (top-level)
+- `coverage.all` usunięte → użyj `coverage.include`
+- `singleThread: true` → `maxWorkers: 1, isolate: false`
+
 ---
 
 ## MSW - Mockowanie API
@@ -102,40 +133,40 @@ afterAll(() => server.close());
 ```typescript
 import { http, HttpResponse } from 'msw';
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 // Przykładowe dane
-const mockTemplates = [
-    { id: '1', name: 'Template 1', category: 'marketing' },
-    { id: '2', name: 'Template 2', category: 'sales' },
+const mockItems = [
+    { id: '1', name: 'Item 1', category: 'marketing' },
+    { id: '2', name: 'Item 2', category: 'sales' },
 ];
 
 export const handlers = [
-    // GET /templates
-    http.get(`${API_URL}/templates`, () => {
-        return HttpResponse.json(mockTemplates);
+    // GET /items
+    http.get(`${API_URL}/items`, () => {
+        return HttpResponse.json(mockItems);
     }),
 
-    // GET /templates/:id
-    http.get(`${API_URL}/templates/:id`, ({ params }) => {
-        const template = mockTemplates.find((t) => t.id === params.id);
+    // GET /items/:id
+    http.get(`${API_URL}/items/:id`, ({ params }) => {
+        const item = mockItems.find((t) => t.id === params.id);
         
-        if (!template) {
+        if (!item) {
             return new HttpResponse(null, { status: 404 });
         }
         
-        return HttpResponse.json(template);
+        return HttpResponse.json(item);
     }),
 
-    // POST /templates
-    http.post(`${API_URL}/templates`, async ({ request }) => {
+    // POST /items
+    http.post(`${API_URL}/items`, async ({ request }) => {
         const body = await request.json();
-        const newTemplate = { id: '3', ...body };
-        return HttpResponse.json(newTemplate, { status: 201 });
+        const newItem = { id: '3', ...body };
+        return HttpResponse.json(newItem, { status: 201 });
     }),
 
-    // DELETE /templates/:id
-    http.delete(`${API_URL}/templates/:id`, ({ params }) => {
+    // DELETE /items/:id
+    http.delete(`${API_URL}/items/:id`, ({ params }) => {
         return new HttpResponse(null, { status: 204 });
     }),
 ];
@@ -157,12 +188,12 @@ import { server } from '@/test/mocks/server';
 test('obsługuje błąd serwera', async () => {
     // Nadpisz handler tylko dla tego testu
     server.use(
-        http.get('http://localhost:3000/api/templates', () => {
+        http.get('http://localhost:3000/api/items', () => {
             return new HttpResponse(null, { status: 500 });
         })
     );
 
-    render(<TemplateList />);
+    render(<ItemList />);
     
     await waitFor(() => {
         expect(screen.getByText(/błąd/i)).toBeInTheDocument();
@@ -210,17 +241,17 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 test('ładuje i wyświetla dane', async () => {
-    render(<TemplateList />);
+    render(<ItemList />);
 
     // Sprawdź loading state
     expect(screen.getByText(/ładowanie/i)).toBeInTheDocument();
 
     // Poczekaj na dane
     await waitFor(() => {
-        expect(screen.getByText('Template 1')).toBeInTheDocument();
+        expect(screen.getByText('Item 1')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Template 2')).toBeInTheDocument();
+    expect(screen.getByText('Item 2')).toBeInTheDocument();
 });
 ```
 
@@ -302,19 +333,19 @@ export { createTestQueryClient };
 import { render, screen, waitFor } from '@/test/utils';
 
 test('komponent z React Query', async () => {
-    render(<TemplateList />);
+    render(<ItemList />);
     
     await waitFor(() => {
-        expect(screen.getByText('Template 1')).toBeInTheDocument();
+        expect(screen.getByText('Item 1')).toBeInTheDocument();
     });
 });
 
 // Z konkretną ścieżką początkową
 test('strona szczegółów', async () => {
-    render(<TemplatePage />, { initialEntries: ['/templates/1'] });
+    render(<ItemPage />, { initialEntries: ['/items/1'] });
     
     await waitFor(() => {
-        expect(screen.getByText('Template 1')).toBeInTheDocument();
+        expect(screen.getByText('Item 1')).toBeInTheDocument();
     });
 });
 ```
@@ -325,10 +356,10 @@ test('strona szczegółów', async () => {
 
 ### Hook useQuery
 ```typescript
-// hooks/useTemplates.test.tsx
+// hooks/useItems.test.tsx
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useTemplates } from './useTemplates';
+import { useItems } from './useItems';
 
 function createWrapper() {
     const queryClient = new QueryClient({
@@ -344,9 +375,9 @@ function createWrapper() {
     );
 }
 
-describe('useTemplates', () => {
-    it('pobiera listę szablonów', async () => {
-        const { result } = renderHook(() => useTemplates(), {
+describe('useItems', () => {
+    it('pobiera listę elementów', async () => {
+        const { result } = renderHook(() => useItems(), {
             wrapper: createWrapper(),
         });
 
@@ -359,11 +390,11 @@ describe('useTemplates', () => {
         });
 
         expect(result.current.data).toHaveLength(2);
-        expect(result.current.data?.[0].name).toBe('Template 1');
+        expect(result.current.data?.[0].name).toBe('Item 1');
     });
 
     it('filtruje po kategorii', async () => {
-        const { result } = renderHook(() => useTemplates('marketing'), {
+        const { result } = renderHook(() => useItems('marketing'), {
             wrapper: createWrapper(),
         });
 
@@ -379,37 +410,37 @@ describe('useTemplates', () => {
 
 ### Hook useMutation
 ```typescript
-// hooks/useCreateTemplate.test.tsx
+// hooks/useCreateItem.test.tsx
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { useCreateTemplate } from './useCreateTemplate';
+import { useCreateItem } from './useCreateItem';
 
-describe('useCreateTemplate', () => {
-    it('tworzy nowy szablon', async () => {
-        const { result } = renderHook(() => useCreateTemplate(), {
+describe('useCreateItem', () => {
+    it('tworzy nowy element', async () => {
+        const { result } = renderHook(() => useCreateItem(), {
             wrapper: createWrapper(),
         });
 
         // React 19: użyj async act dla mutacji
         await act(async () => {
-            result.current.mutate({ name: 'New Template', category: 'hr' });
+            result.current.mutate({ name: 'New Item', category: 'hr' });
         });
 
         await waitFor(() => {
             expect(result.current.isSuccess).toBe(true);
         });
 
-        expect(result.current.data?.name).toBe('New Template');
+        expect(result.current.data?.name).toBe('New Item');
     });
 
     it('obsługuje błąd', async () => {
         // Nadpisz handler żeby zwracał błąd
         server.use(
-            http.post('http://localhost:3000/api/templates', () => {
+            http.post('http://localhost:3000/api/items', () => {
                 return new HttpResponse(null, { status: 400 });
             })
         );
 
-        const { result } = renderHook(() => useCreateTemplate(), {
+        const { result } = renderHook(() => useCreateItem(), {
             wrapper: createWrapper(),
         });
 
@@ -543,11 +574,11 @@ describe('ContactForm', () => {
 ```typescript
 import { render, screen, waitFor } from '@/test/utils';
 import userEvent from '@testing-library/user-event';
-import { TemplateForm } from './TemplateForm';
+import { ItemForm } from './ItemForm';
 
 test('wybiera kategorię z Select', async () => {
     const user = userEvent.setup();
-    render(<TemplateForm />);
+    render(<ItemForm />);
 
     // Otwórz select (shadcn/ui Select)
     await user.click(screen.getByRole('combobox'));
@@ -560,7 +591,7 @@ test('wybiera kategorię z Select', async () => {
 
 test('zaznacza checkbox', async () => {
     const user = userEvent.setup();
-    render(<TemplateForm />);
+    render(<ItemForm />);
 
     const checkbox = screen.getByRole('checkbox', { name: /publiczny/i });
     expect(checkbox).not.toBeChecked();
@@ -574,11 +605,11 @@ test('zaznacza checkbox', async () => {
 
 ## Testowanie Routingu
 ```typescript
-// pages/TemplatePage.test.tsx
+// pages/ItemPage.test.tsx
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TemplatePage } from './TemplatePage';
+import { ItemPage } from './ItemPage';
 
 function renderWithRouter(initialEntry: string) {
     const queryClient = new QueryClient({
@@ -589,24 +620,24 @@ function renderWithRouter(initialEntry: string) {
         <QueryClientProvider client={queryClient}>
             <MemoryRouter initialEntries={[initialEntry]}>
                 <Routes>
-                    <Route path="/templates/:id" element={<TemplatePage />} />
+                    <Route path="/items/:id" element={<ItemPage />} />
                 </Routes>
             </MemoryRouter>
         </QueryClientProvider>
     );
 }
 
-describe('TemplatePage', () => {
-    it('wyświetla szablon na podstawie ID z URL', async () => {
-        renderWithRouter('/templates/1');
+describe('ItemPage', () => {
+    it('wyświetla element na podstawie ID z URL', async () => {
+        renderWithRouter('/items/1');
 
         await waitFor(() => {
-            expect(screen.getByText('Template 1')).toBeInTheDocument();
+            expect(screen.getByText('Item 1')).toBeInTheDocument();
         });
     });
 
-    it('wyświetla 404 dla nieistniejącego szablonu', async () => {
-        renderWithRouter('/templates/999');
+    it('wyświetla 404 dla nieistniejącego elementu', async () => {
+        renderWithRouter('/items/999');
 
         await waitFor(() => {
             expect(screen.getByText(/nie znaleziono/i)).toBeInTheDocument();
@@ -803,13 +834,13 @@ test('debounce search', async () => {
 ## Snapshot Testing
 ```typescript
 test('renderuje poprawnie', () => {
-    const { container } = render(<TemplateCard template={mockTemplate} />);
+    const { container } = render(<ItemCard template={mockTemplate} />);
     expect(container.firstChild).toMatchSnapshot();
 });
 
 // Inline snapshot
 test('renderuje tytuł', () => {
-    render(<TemplateCard template={mockTemplate} />);
+    render(<ItemCard template={mockTemplate} />);
     expect(screen.getByRole('heading').textContent).toMatchInlineSnapshot(`"Template 1"`);
 });
 ```
@@ -831,8 +862,8 @@ src/
 │       ├── ContactForm.test.tsx
 │       └── ContactForm.integration.test.tsx
 ├── hooks/
-│   ├── useTemplates.ts
-│   └── useTemplates.test.tsx
+│   ├── useItems.ts
+│   └── useItems.test.tsx
 ├── pages/
 │   ├── HomePage.tsx
 │   └── HomePage.test.tsx
