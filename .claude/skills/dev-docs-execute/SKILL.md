@@ -1,7 +1,7 @@
 ---
 name: dev-docs-execute
 description: "Kontynuacja pracy nad zadaniem - wykonanie kolejnej fazy/etapu."
-argument-hint: "[ścieżka-do-folderu np. 'dev/active/auth-refaktor']"
+argument-hint: "[ścieżka-do-folderu np. 'docs/active/auth-refaktor']"
 disable-model-invocation: true
 ---
 

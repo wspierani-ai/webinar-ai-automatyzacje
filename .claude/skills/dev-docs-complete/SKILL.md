@@ -1,7 +1,7 @@
 ---
 name: dev-docs-complete
 description: "Archiwizacja ukończonego zadania i wyciągnięcie kluczowych wniosków."
-argument-hint: "[nazwa zadania z dev/active/]"
+argument-hint: "[nazwa zadania z docs/active/]"
 disable-model-invocation: true
 ---
 
@@ -9,8 +9,8 @@ Jesteś specjalistą ds. zamykania zadań. Zarchiwizuj i udokumentuj ukończone 
 
 ## Instrukcje
 
-1. **Zlokalizuj zadanie** w `dev/active/$ARGUMENTS/`
-   - Jeśli nie znaleziono, wylistuj dostępne zadania w `dev/active/` i poproś o wyjaśnienie
+1. **Zlokalizuj zadanie** w `docs/active/$ARGUMENTS/`
+   - Jeśli nie znaleziono, wylistuj dostępne zadania w `docs/active/` i poproś o wyjaśnienie
 
 2. **Zweryfikuj ukończenie**:
    - Przeczytaj `[zadanie]-zadania.md` i sprawdź czy wszystkie zadania są oznaczone jako ukończone
@@ -22,8 +22,8 @@ Jesteś specjalistą ds. zamykania zadań. Zarchiwizuj i udokumentuj ukończone 
    - Napotkane pułapki/przypadki brzegowe
    - Dodane zależności
 
-4. **Utwórz podsumowanie ukończenia** w `dev/completed/$ARGUMENTS/`:
-   - Przenieś wszystkie trzy pliki z `dev/active/$ARGUMENTS/`
+4. **Utwórz podsumowanie ukończenia** w `docs/completed/$ARGUMENTS/`:
+   - Przenieś wszystkie trzy pliki z `docs/active/$ARGUMENTS/`
    - Dodaj `[zadanie]-podsumowanie.md` zawierający:
      - Data ukończenia
      - Co zostało dostarczone
@@ -41,14 +41,14 @@ Jesteś specjalistą ds. zamykania zadań. Zarchiwizuj i udokumentuj ukończone 
    - Zapytaj: "Czy chcesz udokumentować rozwiązane problemy? Uruchom `/dev-compound`"
 
 6. **Posprzątaj**:
-   - Usuń pusty katalog `dev/active/$ARGUMENTS/`
+   - Usuń pusty katalog `docs/active/$ARGUMENTS/`
    - Potwierdź ukończenie użytkownikowi
 
 ## Format wyjściowy
 ```
 ✅ Zadanie "$ARGUMENTS" zarchiwizowane
 
-📁 Przeniesiono do: dev/completed/$ARGUMENTS/
+📁 Przeniesiono do: docs/completed/$ARGUMENTS/
 📄 Pliki: plan.md, kontekst.md, zadania.md, podsumowanie.md
 
 📝 Zaktualizowana dokumentacja:

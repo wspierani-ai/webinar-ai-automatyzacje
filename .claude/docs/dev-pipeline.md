@@ -48,27 +48,27 @@ Każdy skill działa BEZ argumentów (wyciąga kontekst z sesji). Argumenty są 
 #### `/dev-docs`
 **Cel:** Tworzenie struktury zarządzania zadaniami do implementacji.
 **Kiedy:** Masz plan (z dev-plan lub z rozmowy w plan mode). Chcesz zacząć implementację.
-**Jak działa:** Szuka plan/requirements docs, tworzy branch git, generuje 3 pliki w `dev/active/[nazwa]/`.
-**Output:** `dev/active/[nazwa]/` z: plan.md, kontekst.md, zadania.md + branch `feature/[nazwa]`
-**Następny krok:** `/dev-docs-execute dev/active/[nazwa]`
+**Jak działa:** Szuka plan/requirements docs, tworzy branch git, generuje 3 pliki w `docs/active/[nazwa]/`.
+**Output:** `docs/active/[nazwa]/` z: plan.md, kontekst.md, zadania.md + branch `feature/[nazwa]`
+**Następny krok:** `/dev-docs-execute docs/active/[nazwa]`
 
 ### Faza implementacji
 
-#### `/dev-docs-execute dev/active/[nazwa]`
+#### `/dev-docs-execute docs/active/[nazwa]`
 **Cel:** Wykonanie jednej fazy implementacji.
-**Kiedy:** Masz gotową dokumentację w dev/active/. Chcesz zaimplementować kolejną fazę.
+**Kiedy:** Masz gotową dokumentację w docs/active/. Chcesz zaimplementować kolejną fazę.
 **Jak działa:** Czyta plan, znajduje następną fazę, wykonuje ją. Wybiera strategię: inline (1-2 taski) lub sub-agenty (3+ tasków). Sprawdza scope boundaries. Po zakończeniu: System-Wide Test Check (5 pytań), aktualizacja checkboxów w planie, incremental commits.
 **Output:** Zaimplementowany kod + zaktualizowana dokumentacja + commit(y)
-**Następny krok:** `/dev-docs-review dev/active/[nazwa] [numer-fazy]` lub kolejny `/dev-docs-execute`
+**Następny krok:** `/dev-docs-review docs/active/[nazwa] [numer-fazy]` lub kolejny `/dev-docs-execute`
 
-#### `/dev-docs-review dev/active/[nazwa] [numer-fazy]`
+#### `/dev-docs-review docs/active/[nazwa] [numer-fazy]`
 **Cel:** Code review wykonanej fazy.
 **Kiedy:** Po `/dev-docs-execute` — chcesz sprawdzić jakość kodu przed kontynuacją.
 **Jak działa:** 4 agenty review równolegle (Security, Performance, Architecture, Scenario Exploration). Konsolidacja wyników. Severity gate: P1 (blokuje) / P2 (zastrzeżenia) / P3 (OK).
-**Output:** `dev/active/[nazwa]/review-faza-X.md` + checkboxy do poprawy w zadaniach
+**Output:** `docs/active/[nazwa]/review-faza-X.md` + checkboxy do poprawy w zadaniach
 **Następny krok:** `/dev-docs-execute` (poprawki) lub kolejna faza
 
-#### `/dev-docs-update dev/active/[nazwa]`
+#### `/dev-docs-update docs/active/[nazwa]`
 **Cel:** Zapisanie stanu pracy przed resetem kontekstu (kompaktowanie).
 **Kiedy:** Sesja się kończy, kontekst się zapełnia, chcesz zabezpieczyć postęp.
 **Jak działa:** Commituje WIP, aktualizuje 3 pliki zadania, dokumentuje niedokończoną pracę.
@@ -79,8 +79,8 @@ Każdy skill działa BEZ argumentów (wyciąga kontekst z sesji). Argumenty są 
 #### `/dev-docs-complete [nazwa]`
 **Cel:** Archiwizacja ukończonego zadania.
 **Kiedy:** Wszystkie fazy zrobione, testy przechodzą, feature gotowy.
-**Jak działa:** Weryfikuje ukończenie, wyciąga wnioski, przenosi do `dev/completed/`, aktualizuje dokumentację projektu.
-**Output:** `dev/completed/[nazwa]/` z podsumowaniem
+**Jak działa:** Weryfikuje ukończenie, wyciąga wnioski, przenosi do `docs/completed/`, aktualizuje dokumentację projektu.
+**Output:** `docs/completed/[nazwa]/` z podsumowaniem
 **Następny krok:** Sugestia `/dev-compound` do udokumentowania rozwiązanych problemów
 
 ### Knowledge capture
@@ -145,18 +145,17 @@ docs/
     ├── testing-issues/
     └── _archived/
 
-dev/
-├── active/                   ← aktywne zadania z /dev-docs
-│   └── [nazwa-zadania]/
-│       ├── [nazwa]-plan.md
-│       ├── [nazwa]-kontekst.md
-│       └── [nazwa]-zadania.md
-└── completed/                ← zarchiwizowane z /dev-docs-complete
-    └── [nazwa-zadania]/
-        ├── [nazwa]-plan.md
-        ├── [nazwa]-kontekst.md
-        ├── [nazwa]-zadania.md
-        └── [nazwa]-podsumowanie.md
+    active/                   ← aktywne zadania z /dev-docs
+    │   └── [nazwa-zadania]/
+    │       ├── [nazwa]-plan.md
+    │       ├── [nazwa]-kontekst.md
+    │       └── [nazwa]-zadania.md
+    └── completed/                ← zarchiwizowane z /dev-docs-complete
+        └── [nazwa-zadania]/
+            ├── [nazwa]-plan.md
+            ├── [nazwa]-kontekst.md
+            ├── [nazwa]-zadania.md
+            └── [nazwa]-podsumowanie.md
 ```
 
 ---
@@ -169,9 +168,9 @@ dev/
 /dev-brainstorm lazy loading         ← doprecyzuj wybrany pomysł
 /dev-plan                            ← plan techniczny
 /dev-docs                            ← struktura zadań
-/dev-docs-execute dev/active/lazy-loading   ← faza 1
-/dev-docs-review dev/active/lazy-loading 1  ← review
-/dev-docs-execute dev/active/lazy-loading   ← faza 2
+/dev-docs-execute docs/active/lazy-loading   ← faza 1
+/dev-docs-review docs/active/lazy-loading 1  ← review
+/dev-docs-execute docs/active/lazy-loading   ← faza 2
 /dev-docs-complete lazy-loading      ← archiwizacja
 ```
 
@@ -185,7 +184,7 @@ dev/
 ```
 [rozmowa + plan mode]
 /dev-docs                            ← od razu do struktury zadań
-/dev-docs-execute dev/active/nazwa   ← implementuj
+/dev-docs-execute docs/active/nazwa   ← implementuj
 /dev-docs-complete nazwa             ← zamknij
 ```
 

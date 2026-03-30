@@ -22,7 +22,7 @@ Przed aktualizacją dokumentacji:
 4. **Zapisz hash ostatniego commita:** `git rev-parse --short HEAD`
 
 ### 1. Aktualizacja dokumentacji aktywnych zadań
-Dla każdego zadania w `dev/active/[nazwa-zadania]/`:
+Dla każdego zadania w `docs/active/[nazwa-zadania]/`:
 
 **Zaktualizuj `[nazwa-zadania]-plan.md`:**
 - Weryfikacja aktualności planu względem wykonanych prac
@@ -71,7 +71,7 @@ Na końcu `[nazwa-zadania]-kontekst.md` dodaj sekcję "Przekazanie":
 ### 5. Commit dokumentacji
 Po aktualizacji wszystkich plików:
 ```bash
-git add dev/active/
+git add docs/active/
 git commit -m "docs([nazwa-zadania]): aktualizacja przed resetem kontekstu"
 ```
 

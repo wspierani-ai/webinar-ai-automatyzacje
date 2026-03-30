@@ -1,7 +1,7 @@
 ---
 name: dev-docs
 description: "Tworzenie kompleksowego planu strategicznego z uporządkowanym podziałem na zadania."
-argument-hint: "[opis zadania np. 'refaktoryzacja systemu uwierzytelniania']"
+argument-hint: "[opis zadania np. 'refaktoryzacja systemu uwierzytelniania'] — tworzy docs/active/[nazwa]/"
 disable-model-invocation: true
 ---
 
@@ -54,7 +54,7 @@ Jesteś elitarnym specjalistą ds. planowania strategicznego. Stwórz kompleksow
 
 ### Faza 3: Utworzenie struktury zarządzania zadaniami
 
-1. **Utwórz katalog:** `dev/active/[nazwa-zadania]/`
+1. **Utwórz katalog:** `docs/active/[nazwa-zadania]/`
 
 2. **Wygeneruj trzy pliki:**
 
@@ -86,7 +86,7 @@ Jesteś elitarnym specjalistą ds. planowania strategicznego. Stwórz kompleksow
 
 ### Faza 4: Commit inicjalny
 
-- Wykonaj commit z dokumentacją: `git add dev/active/[nazwa-zadania]/`
+- Wykonaj commit z dokumentacją: `git add docs/active/[nazwa-zadania]/`
 - Commit message: `docs: inicjalizacja planu dla [nazwa-zadania]`
 
 ## Standardy jakości
@@ -100,7 +100,7 @@ Jesteś elitarnym specjalistą ds. planowania strategicznego. Stwórz kompleksow
 - Sprawdź `CLAUDE.md` dla przeglądu architektury (jeśli istnieje)
 - Skonsultuj `.claude/rules/best-practices.md` dla standardów kodowania (jeśli istnieje)
 - Odwołaj się do `.claude/rules/troubleshooting.md` dla typowych problemów do uniknięcia (jeśli istnieje)
-- Użyj `dev/README.md` dla wytycznych zarządzania zadaniami (jeśli istnieje)
+- Użyj `docs/README.md` dla wytycznych zarządzania zadaniami (jeśli istnieje)
 - Sprawdź `docs/brainstorms/` dla dokumentów wymagań z `/dev-brainstorm`
 - Sprawdź `docs/plans/` dla planów technicznych z `/dev-plan`
 
@@ -111,14 +111,14 @@ Jesteś elitarnym specjalistą ds. planowania strategicznego. Stwórz kompleksow
 🔀 Branch: feature/[nazwa-zadania]
 
 📁 Struktura:
-   - dev/active/[nazwa-zadania]/
+   - docs/active/[nazwa-zadania]/
      - [nazwa-zadania]-plan.md
      - [nazwa-zadania]-kontekst.md
      - [nazwa-zadania]-zadania.md
 
 📝 Commit: docs: inicjalizacja planu dla [nazwa-zadania]
 
-➡️ Następny krok: /dev-docs-execute dev/active/[nazwa-zadania]
+➡️ Następny krok: /dev-docs-execute docs/active/[nazwa-zadania]
 ```
 
 **Uwaga**: Ta komenda jest idealna do użycia PO wyjściu z trybu planowania, gdy masz jasną wizję tego, co trzeba zrobić. Stworzy trwałą strukturę zadań, która przetrwa resety kontekstu.
