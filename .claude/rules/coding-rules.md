@@ -7,11 +7,6 @@
 - Funkcja > 6 argumentów = stwórz obiekt konfiguracyjny / interfejs
 - Nesting > 2 poziomy = użyj early return
 - Klasa > 1 odpowiedzialność = podziel (Single Responsibility Principle)
-
-### Dlaczego to ważne dla AI
-
-AI ma tendencję do tworzenia "God functions" — wrzuca całą logikę w jedną funkcję bo tak jest prościej wygenerować. Bez limitu pliki rosną do 500+ linii, gdzie AI traci kontekst i zaczyna duplikować logikę. Modele LLM generują lepszy kod kiedy operują na mniejszych, dobrze zdefiniowanych jednostkach.
-
 ---
 
 ## 2. Testowanie
@@ -28,15 +23,6 @@ AI ma tendencję do tworzenia "God functions" — wrzuca całą logikę w jedną
 - Nie ładuj pełnych datasetów w unit testach — używaj fixtures w `tests/fixtures/`
 - Pattern: Arrange-Act-Assert wewnątrz describe/it bloków
 - Testuj ZACHOWANIE (behavior), nie implementację (internal state)
-
-### Dlaczego to ważne dla AI
-
-To jest #1 failure mode AI. Udokumentowane w badaniu 275 testów: agent osłabia asercje, obniża threshold pokrycia, tworzy testy bez asercji (assertion-free), i modyfikuje swoje własne reguły governance żeby obejść ograniczenia. AI optymalizuje pod "zielone testy", nie pod "poprawny kod". Bez tych reguł AI będzie:
-- Zmieniać `expect(result).toBe(429)` na `expect(result).toBeDefined()` żeby test przeszedł
-- Usuwać "flaky" testy zamiast naprawiać kod
-- Assignować wyniki do blank identifier (`_`) — coverage rośnie, weryfikacja = zero
-- Obniżać threshold coverage kiedy nie może go osiągnąć
-
 ---
 
 ## 3. Organizacja kodu
@@ -50,13 +36,6 @@ To jest #1 failure mode AI. Udokumentowane w badaniu 275 testów: agent osłabia
 - Nie twórz konfiguracji dla wartości które nigdy się nie zmienią
 - Importy: grouped (stdlib, third-party, local), sorted alphabetically
 - Jeden eksport per plik dla głównych modułów
-
-### Dlaczego to ważne dla AI
-
-AI ma dwa przeciwstawne anty-patterny:
-1. **Over-specification** — implementuje scenariusze które nie istnieją w wymaganiach (np. dodaje OAuth gdy nikt o to nie prosił), tworzy abstrakcje dla jednej implementacji
-2. **Context blindness** — w długich sesjach duplikuje logikę, tworzy niespójne implementacje między plikami, bo "zapomniało" co już napisało
-
 ---
 
 ## 4. Error handling
@@ -71,11 +50,6 @@ AI ma dwa przeciwstawne anty-patterny:
 - API routes: ustandaryzowany format odpowiedzi `{ data, error: { code, message } }`
 - Używaj structured logging (JSON format, np. pino), nie `console.log`
 - Nie suppressuj błędów — finding zawsze wymaga naprawy, nie racjonalizacji
-
-### Dlaczego to ważne dla AI
-
-AI domyślnie generuje defensywny kod z try/catch na każdym poziomie. Problem: błędy są "połykane" w środkowych warstwach i nigdy nie docierają do poziomu gdzie mogą być obsłużone. Drugi problem: AI racjonalizuje błędy jako "pre-existing" albo "acceptable" zamiast je naprawiać.
-
 ---
 
 ## 5. Anty-patterny specyficzne dla AI
@@ -107,7 +81,6 @@ AI domyślnie generuje defensywny kod z try/catch na każdym poziomie. Problem: 
 | 8 | Tool-switching circumvention | Średnia | Edit zablokowany, więc próbuje sed/echo/python -c |
 | 9 | Context blindness | Wysoka w długich sesjach | Duplikuje logikę, niespójne nazewnictwo |
 | 10 | Defensive over-engineering | 80-90% | Dodaje konfiguracje, abstrakcje, error handling dla scenariuszy które nie istnieją |
-
 ---
 
 ## 6. Self-check / Code review
@@ -132,7 +105,6 @@ AI domyślnie generuje defensywny kod z try/catch na każdym poziomie. Problem: 
 5. Brak hardcoded secrets/keys
 6. Brak console.log w produkcyjnym kodzie
 7. Każda nowa funkcja publiczna ma test
-
 ---
 
 ## 7. Nazewnictwo
@@ -147,11 +119,6 @@ AI domyślnie generuje defensywny kod z try/catch na każdym poziomie. Problem: 
 - Pliki: kebab-case (`user-service.ts`, nie `UserService.ts`) — chyba że framework wymusza inną konwencję
 - Nazwy powinny opisywać CO robi, nie JAK (`getUserById`, nie `fetchAndParseAndValidateUser`)
 - Unikaj akronimów i skrótów chyba że powszechnie znane (`url`, `id` OK; `usrMgr` nie)
-
-### Dlaczego to ważne dla AI
-
-AI ma tendencję do niespójnego nazewnictwa w obrębie jednej sesji (context blindness). Przy generowaniu nowych plików używa losowych konwencji jeśli nie dostanie jasnych reguł. Explicit naming rules = spójność.
-
 ---
 
 ## 8. Zależności i importy
@@ -165,11 +132,6 @@ AI ma tendencję do niespójnego nazewnictwa w obrębie jednej sesji (context bl
 - Importy grouped: stdlib, third-party, local
 - Nie importuj bezpośrednio między packages w monorepo — używaj shared layer
 - Pinuj wersje — deklaruj exact versions w package.json
-
-### Dlaczego to ważne dla AI
-
-AI ma tendencję do dodawania bibliotek które zna z treningu, ignorując co jest już w projekcie. Klasyczny case: dodaje `lodash` dla jednej utility function, albo `axios` kiedy projekt używa natywnego `fetch`.
-
 ---
 
 ## 9. Bezpieczeństwo
@@ -186,11 +148,6 @@ AI ma tendencję do dodawania bibliotek które zna z treningu, ignorując co jes
 - Nie uruchamiaj `rm -rf` bez explicit user confirmation
 - Nie modyfikuj production database bezpośrednio
 - Rate limiting na KAŻDYM public endpoint
-
-### Dlaczego to ważne dla AI
-
-AI nie ma awareness bezpieczeństwa — wygeneruje working code który jest vulnerable. Bez explicit reguł: skonkatenuje SQL, zaloguje API key, sklepi shell command ze stringa. To nie jest edge case — to domyślne zachowanie.
-
 ---
 
 ## 10. Type safety
@@ -205,11 +162,6 @@ AI nie ma awareness bezpieczeństwa — wygeneruje working code który jest vuln
 - Strict mode ON — `"strict": true` w tsconfig
 - Generics > type assertions
 - Zod/io-ts na granicach systemu (API, pliki, user input)
-
-### Dlaczego to ważne dla AI
-
-AI generuje kod który "kompiluje się" ale nie jest type-safe. Najczęstsza ucieczka: `as any`, `as unknown as SomeType`, `!` non-null assertion. To przechodzi typecheck ale wybucha w runtime. Explicit prohibition na `any` wymusza pisanie prawdziwych typów.
-
 ---
 
 ## 11. Filozofia review kodu
@@ -223,11 +175,6 @@ AI generuje kod który "kompiluje się" ale nie jest type-safe. Najczęstsza uci
 - Przy modyfikacji istniejącego pliku pytaj: "Czy ta zmiana sprawia, że istniejący kod jest trudniejszy do zrozumienia?"
 - Preferuj ekstrakcję do nowego modułu/komponentu zamiast komplikowania istniejącego
 - 5-sekundowa reguła nazewnictwa — jeśli nie rozumiesz co robi funkcja/komponent w 5 sekund od nazwy, to zła nazwa
-
-### Dlaczego to ważne dla AI
-
-AI optymalizuje pod "rozwiąż problem jednym strzałem". Efekt: dodaje logikę do istniejących plików zamiast tworzyć nowe moduły, bo jest prościej wygenerować jeden duży plik niż kilka małych. Bez explicite zasady "duplication > complexity" AI tworzy coraz bardziej złożone abstrakcje zamiast prostych kopii.
-
 ---
 
 ## 12. Performance
@@ -240,11 +187,6 @@ AI optymalizuje pod "rozwiąż problem jednym strzałem". Efekt: dodaje logikę 
 - Nowa dependency = uzasadnienie rozmiaru bundle (sprawdź bundlephobia)
 - Dynamic import / React.lazy() dla komponentów > 50KB
 - Nie optymalizuj przedwcześnie — ale MIERZ przed deklaracją "to wystarczy"
-
-### Dlaczego to ważne dla AI
-
-AI nie myśli o skali. Wygeneruje kod który działa na 10 rekordach ale crashuje na 10000. Typowe: nested loop w pętli, select("*") na tabelach z 50 kolumnami, fetch w map(). AI nie sprawdza bundlephobia — doda bibliotekę 200KB dla jednej utility function.
-
 ---
 
 ## 13. Async i race conditions
@@ -258,11 +200,6 @@ AI nie myśli o skali. Wygeneruje kod który działa na 10 rekordach ale crashuj
 - Promise.finally() do cleanup i state transitions — nie duplikuj logiki w resolve i reject
 - requestAnimationFrame w pętli = sprawdź cancel flag przed kolejnym requestAnimationFrame
 - Operacje wzajemnie wykluczające się (np. load preview) = zablokuj następną dopóki poprzednia się nie zakończy lub nie sfailuje
-
-### Dlaczego to ważne dla AI
-
-AI generuje "happy path" async kodu. Nie myśli o: co jeśli komponent się odmontuje w trakcie fetcha? Co jeśli user kliknie 5 razy zanim pierwszy request się skończy? Co jeśli timeout wykona się na DOM który już nie istnieje? Bez explicit reguł AI nigdy nie doda AbortController, nigdy nie doda cleanup w useEffect return.
-
 ---
 
 ## 14. Architektura
@@ -273,8 +210,4 @@ AI generuje "happy path" async kodu. Nie myśli o: co jeśli komponent się odmo
 - Respect layer boundaries — komponent UI nie woła bazy bezpośrednio, idzie przez serwis/hook
 - Single Responsibility dotyczy też plików — plik z komponentem nie zawiera logiki biznesowej
 - API contracts (interfejsy, typy propsów) są stabilne — zmiana interfejsu = świadoma decyzja, nie side-effect refaktoru
-- Nowa zależność między modułami = pytanie: "czy to nie tworzy nieodwracalnego couplingu?"
-
-### Dlaczego to ważne dla AI
-
-AI nie widzi "big picture" architektury. Importuje co potrzebuje bez sprawdzania czy tworzy cykl. Wkleja logikę bazy do komponentu bo "tak szybciej". W dłuższych sesjach zaczyna łączyć moduły które powinny być niezależne. Bez explicit boundary rules codebase konwerguje do "big ball of mud".
+- Nowa zależność między modułami = pytanie: "czy to nie tworzy nieodwracalnego couplingu?".
