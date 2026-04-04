@@ -43,7 +43,8 @@ Dla prostych faz (1-2 zadania) zawsze wybierz Inline.
 - Sprawdź czy w planie (`docs/plans/`) lub w pliku z planem zadania istnieje sekcja "Granice scope'u" / "Poza zakresem"
 - Jeśli tak → przeczytaj ją i NIE implementuj niczego co jest tam wymienione, nawet jeśli wydaje się przydatne
 - Jeśli zadanie wymaga pracy poza zakresem → STOP, poinformuj użytkownika
-- Jeśli checklist fazy zawiera checkboxy z prefixem `Test:` lub `Weryfikacja:` — traktuj je jako integralną część implementacji fazy. Napisz testy RAZEM z kodem implementacyjnym, nie odkładaj na koniec fazy
+- Jeśli checklist fazy zawiera checkboxy z prefixem `Test:` — traktuj je jako integralną część implementacji fazy. Napisz testy RAZEM z kodem implementacyjnym, nie odkładaj na koniec fazy
+- Checkboxy z prefixem `Weryfikacja:` NIE wykonuj — zostaną zweryfikowane wizualnie w przeglądarce podczas `/dev-docs-review`
 - Realizuj zadania z kolejnej fazy/etapu
 - NIE przechodź do następnych faz
 - Zatrzymaj się po ukończeniu tej jednej fazy
@@ -111,9 +112,6 @@ Napisz podsumowanie w **prostym języku** zrozumiałym dla osoby nietechnicznej:
 ### Następny krok
 [Jaka faza/etap jest następny]
 
-### Weryfikacja E2E (jeśli dotyczy)
-[Jeśli checklist fazy zawierał scenariusze `Test (e2e):` — wylistuj je tutaj]
-Uruchom: `/agent-browser` do weryfikacji UI w przeglądarce
 ```
 
 ## Format wyjściowy
