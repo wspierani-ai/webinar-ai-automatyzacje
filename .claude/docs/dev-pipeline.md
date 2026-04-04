@@ -97,15 +97,15 @@ Każdy skill działa BEZ argumentów (wyciąga kontekst z sesji). Argumenty są 
 #### `/dev-compound`
 **Cel:** Dokumentowanie rozwiązanego problemu do bazy wiedzy.
 **Kiedy:** Po rozwiązaniu problemu — bugfix, workaround, konfiguracja. Chcesz żeby następnym razem ten problem nie zabierał czasu.
-**Jak działa:** Bez argumentów = wyciąga kontekst z sesji autonomicznie. Z argumentem = użyj jako opis. Compact mode domyślny, `--full` dla pełnego formatu.
-**Output:** `docs/solutions/[category]/YYYY-MM-DD-title.md`
+**Jak działa:** Bez argumentów = wyciąga kontekst z sesji autonomicznie. Z argumentem = użyj jako opis. Compact mode domyślny, `--full` dla pełnego formatu. Dodatkowo, jeśli problem jest "rule-worthy", dodaje regułę do `.claude/rules/learned-patterns.md` (ładowana automatycznie do każdej sesji).
+**Output:** `docs/solutions/[category]/YYYY-MM-DD-title.md` + opcjonalnie reguła w `.claude/rules/learned-patterns.md`
 **Kategorie:** build-errors, runtime-errors, supabase-issues, auth-issues, ui-bugs, performance-issues, typescript-errors, deployment-issues, testing-issues
 
 #### `/dev-compound-refresh`
 **Cel:** Przegląd aktualności bazy wiedzy.
 **Kiedy:** Co kilka tygodni, po dużym refaktorze, po upgrade'ach dependencies.
-**Jak działa:** Autonomicznie przegląda WSZYSTKIE docs/solutions/. Dla każdego: Keep (aktualne) / Update (drobne zmiany) / Replace (nowe rozwiązanie) / Archive (problem nie istnieje). Archiwizuje do `docs/solutions/_archived/`.
-**Output:** Raport z akcjami + zarchiwizowane/zaktualizowane dokumenty
+**Jak działa:** Autonomicznie przegląda WSZYSTKIE docs/solutions/. Dla każdego: Keep (aktualne) / Update (drobne zmiany) / Replace (nowe rozwiązanie) / Archive (problem nie istnieje). Archiwizuje do `docs/solutions/_archived/`. Dodatkowo przegląda `.claude/rules/learned-patterns.md`: usuwa reguły po Archive, aktualizuje po Replace, deduplikuje, pilnuje limitu ~50.
+**Output:** Raport z akcjami + zarchiwizowane/zaktualizowane dokumenty + zaktualizowany learned-patterns.md
 
 ---
 

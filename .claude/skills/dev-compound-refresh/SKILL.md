@@ -8,7 +8,7 @@ argument-hint: "[opcjonalnie: kategoria do przejrzenia]"
 
 **Uwaga: Aktualny rok to 2026.** Używaj tego przy datowaniu dokumentów.
 
-Utrzymuje jakość `docs/solutions/` w czasie. Workflow przeglada istniejące dokumenty rozwiązań względem aktualnego codebase, a następnie odświeża dokumenty wzorcowe (pattern docs) zależne od nich.
+Utrzymuje jakość `docs/solutions/` oraz reguł w `.claude/rules/learned-patterns.md` w czasie. Workflow przeglada istniejące dokumenty rozwiązań względem aktualnego codebase, a następnie odświeża dokumenty wzorcowe (pattern docs) zależne od nich.
 
 ## Tryb pracy
 
@@ -39,6 +39,7 @@ Odświeżaj w tej kolejności:
 1. Najpierw przejrzyj poszczególne dokumenty rozwiązań (learnings)
 2. Zanotuj które rozwiązania pozostały aktualne, zostały zaktualizowane, zastąpione lub zarchiwizowane
 3. Następnie przejrzyj dokumenty wzorcowe (pattern docs) zależne od tych rozwiązań
+4. Na końcu przejrzyj `.claude/rules/learned-patterns.md` — usuń reguły bez aktualnego źródła, zaktualizuj po Replace, zdeduplikuj, wyegzekwuj limit ~50
 
 Dlaczego ta kolejność:
 
@@ -159,6 +160,41 @@ Po przejrzeniu dokumentów rozwiązań, zbadaj powiązane dokumenty wzorcowe pod
 Dokumenty wzorcowe mają wysoki dźwignię — przestarzały wzorzec jest bardziej niebezpieczny niż przestarzałe pojedyncze rozwiązanie, bo przyszła praca może traktować go jako szeroko stosowalne wskazówki. Oceń czy uogólniona reguła nadal obowiązuje, biorąc pod uwagę odświeżony stan rozwiązań na których bazuje.
 
 Dokument wzorcowy bez wyraźnych wspierających rozwiązań to sygnał przestarzałości — zbadaj uważnie przed zostawieniem bez zmian.
+
+## Faza 1.7: Przegląd learned-patterns.md
+
+Po przejrzeniu dokumentów rozwiązań i wzorcowych, przejrzyj reguły w `.claude/rules/learned-patterns.md`.
+
+Jeśli plik nie istnieje — pomiń tę fazę.
+
+Dla KAŻDEJ reguły w pliku:
+
+1. **Odczytaj ścieżkę Source** z reguły
+2. **Sprawdź status źródła:**
+   - Czy plik źródłowy nadal istnieje w `docs/solutions/`?
+   - Czy plik źródłowy został przeniesiony do `docs/solutions/_archived/` w tej lub wcześniejszej sesji refresh?
+   - Czy plik źródłowy został zastąpiony (Replace) — sprawdź `superseded_by` we frontmatter?
+
+3. **Klasyfikacja akcji na regule:**
+
+| Stan źródła | Akcja na regule |
+|---|---|
+| Źródło istnieje i jest Keep/Update | Zachowaj regułę bez zmian |
+| Źródło zostało Replace | Zaktualizuj Source na nowy plik następcy. Jeśli treść reguły jest nadal prawdziwa — zachowaj. Jeśli następca zmienia rekomendację — przepisz regułę na podstawie nowego następcy |
+| Źródło zostało Archive | Usuń regułę — problem nie jest już aktualny |
+| Źródło nie istnieje (brak pliku, brak archiwum) | Zweryfikuj aktualność reguły na podstawie codebase. Jeśli nadal poprawna — zachowaj z adnotacją `(źródło usunięte, reguła zachowana)`. Jeśli nie można zweryfikować — usuń |
+
+4. **Deduplikacja:**
+   - Porównaj wszystkie reguły parami
+   - Jeśli dwie reguły mówią zasadniczo to samo (nawet różnymi słowami), połącz je w jedną, zachowując oba Source
+   - Preferuj bardziej precyzyjne sformułowanie
+
+5. **Egzekwowanie limitu ~50:**
+   - Po usunięciach i mergach policz reguły
+   - Jeśli nadal > 50: usuń reguły o najniższej wartości (najstarsze Source + najwęższe zastosowanie)
+   - Zaktualizuj `<!-- rule-count: N -->`
+
+6. **Zapisz zmodyfikowany plik** jeśli wprowadzono jakiekolwiek zmiany.
 
 ## Strategia subagentów
 
@@ -336,6 +372,19 @@ Następnie dla KAŻDEGO przetworzonego pliku podaj:
 - Jaką akcję wykonano (lub zarekomendowano)
 
 Dla wyników **Keep**, umieść je w sekcji przejrzanych-bez-edycji żeby wynik był widoczny bez tworzenia churnu git.
+
+### Learned Patterns (.claude/rules/learned-patterns.md)
+
+Jeśli plik istnieje i był przeglądany w Fazie 1.7, dodaj sekcję:
+
+```text
+Learned Patterns:
+  Reguł przed refresh: N
+  Reguł po refresh: M
+  Usunięte (źródło zarchiwizowane): X
+  Zaktualizowane (źródło zastąpione): Y
+  Zduplikowane (zmergowane): Z
+```
 
 ### Format raportu autonomicznego
 

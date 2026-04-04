@@ -156,7 +156,45 @@ Plik: docs/solutions/[category]/[filename].md
 
 Aby uzyskać bogatszą dokumentację (cross-referencje, diagnostyka, strategia zapobiegania),
 uruchom /dev-compound --full w świeżej sesji.
+
+[Jeśli dodano regułę:]
+Reguła: Dodana do .claude/rules/learned-patterns.md
 ```
+
+### Krok 6: Ocena i dodanie reguły do learned-patterns
+
+Po zapisaniu dokumentacji, autonomicznie oceń czy rozwiązany problem zasługuje na regułę w `.claude/rules/learned-patterns.md`. Nie pytaj użytkownika — zdecyduj sam.
+
+**Kryteria rule-worthy (problem spełnia minimum 2 z 5):**
+
+1. **Ryzyko powtórzenia** — błąd łatwo popełnić ponownie bo API/zachowanie jest nieintuicyjne lub słabo udokumentowane
+2. **Wysoka waga** — problem powodował ciche błędy, lukę bezpieczeństwa, utratę danych lub trudne do debugowania zachowanie
+3. **Prosty wzorzec** — regułę da się wyrazić w 1-3 liniach jako "rób X, nie Y"
+4. **Szerokie zastosowanie** — wzorzec dotyczy przyszłego kodu w tym stacku, nie jednorazowej migracji czy typo
+5. **Niewidoczna luka wiedzy** — problem nie manifestuje się oczywistym błędem; cicho daje złe wyniki lub ujawnia się dopiero w produkcji/strict mode
+
+**Jeśli rule-worthy:**
+
+1. Przeczytaj `.claude/rules/learned-patterns.md` (jeśli istnieje)
+2. Sprawdź czy nie istnieje już zduplikowana lub bardzo podobna reguła — jeśli tak, pomiń
+3. Odczytaj aktualny rule-count z komentarza `<!-- rule-count: N -->`
+4. Jeśli N >= 50: NIE dodawaj nowej reguły. Zanotuj w podsumowaniu że limit został osiągnięty i zasugeruj `/dev-compound-refresh`
+5. Jeśli plik nie istnieje, stwórz go z nagłówkiem:
+   ```markdown
+   # Learned Patterns
+
+   Reguły wyciągnięte z rozwiązanych problemów w docs/solutions/. Zarządzane przez /dev-compound i /dev-compound-refresh.
+
+   <!-- rule-count: 0 -->
+   ```
+6. Dodaj regułę na końcu pliku:
+   ```markdown
+   - **[Zwięzły tytuł wzorca]**: [1-2 zdania actionable guidance: "rób X, nie Y"]
+     Source: docs/solutions/[category]/[filename].md
+   ```
+7. Zaktualizuj `<!-- rule-count: N -->` na `<!-- rule-count: N+1 -->`
+
+**Jeśli NIE jest rule-worthy:** pomiń ten krok cicho, nie dodawaj nic do podsumowania.
 
 ---
 
@@ -272,6 +310,10 @@ Odświeżenie **nie** ma sensu gdy:
 
 Jeśli widzisz oczywistego kandydata do odświeżenia, wspomnij o tym w podsumowaniu i zasugeruj uruchomienie `/dev-compound-refresh` z wąskim scope.
 
+### Po zapisie: ocena i dodanie reguły do learned-patterns
+
+Identyczna logika jak Krok 6 w trybie Compact — autonomicznie oceń czy problem jest rule-worthy (minimum 2 z 5 kryteriów), sprawdź duplikaty i limit ~50, dodaj regułę do `.claude/rules/learned-patterns.md` jeśli zasługuje. Jeśli plik nie istnieje — stwórz z nagłówkiem. Format reguły i kryteria opisane w Kroku 6 trybu Compact.
+
 ---
 
 ## Co przechwytuje
@@ -339,6 +381,8 @@ Wyniki zadań:
   - Klasyfikator kategorii: `auth-issues`
 
 Plik: docs/solutions/auth-issues/2026-03-24-supabase-rls-policy-bypass.md
+
+Reguła: [Dodana do .claude/rules/learned-patterns.md / Limit osiągnięty / Nie rule-worthy]
 
 Ta dokumentacja będzie wyszukiwalna jako referencja gdy podobne
 problemy pojawią się w przyszłości.
