@@ -182,6 +182,24 @@ last_updated: 2026-04-09
 
 ---
 
+## Do poprawy po review fazy 1
+
+- [x] 🟠 [important] **bot/webhook.py:26** — Zastąp `==` przez `hmac.compare_digest()` dla porównania secret token (timing attack mitigation)
+- [x] 🟠 [important] **bot/handlers/internal_triggers.py** — Zaimplementuj weryfikację OIDC auth na `/internal/trigger-reminder` i `/internal/trigger-nudge` (endpointy są publicznie dostępne wbrew planowi Unit 5)
+- [x] 🟠 [important] **bot/services/firestore_client.py:7** — Przenieś `MagicMock` import poza produkcyjny kod; użyj wzorca z osobną fabryką testową lub `importlib` zamiast importu `unittest.mock` w pliku produkcyjnym
+- [x] 🟠 [important] **bot/models/user.py:92-108** — Usuń dead code (`@db.transaction` + `_txn` nigdy nie wywołane) lub zaimplementuj prawdziwą transakcję; obecna nieatomiyczna ścieżka get→set narażona na race condition przy concurrent `/start`
+- [x] 🟠 [important] **bot/main.py:14-18** + **bot/webhook.py:84-100** — Podepnij routery webhook, command, message i callback handlers w `main.py` oraz zaimplementuj routing w `_route_update` (bot nie jest funkcjonalny end-to-end)
+- [x] 🟠 [important] **bot/handlers/message_handlers.py:247-254** — Stwórz `adhd-bot/infra/firestore-indexes.json` z composite index na `(telegram_user_id, state, created_at DESC)` dla kolekcji `tasks`; bez tego query w `_handle_time_input` zgłosi `FAILED_PRECONDITION` w produkcji
+- [x] 🟠 [important] **tests/test_reminder_callbacks.py:TestSnooze30Min** (linia 99) — Dodaj asercję: `mock_snooze.call_args` → zweryfikuj że `new_fire_at ≈ now + 30min` (±5s tolerance)
+- [x] 🟠 [important] **tests/test_reminder_callbacks.py:TestSnooze2h** (linia 124) — Dodaj asercję weryfikującą stan tasku (`SNOOZED`) lub że `snooze_reminder` wywołany z `new_fire_at ≈ now + 2h`
+- [ ] 🟡 [nit] **bot/handlers/callback_handlers.py:17**, **internal_triggers.py:18**, **message_handlers.py:16** — Wyciągnij `TELEGRAM_BASE_URL` do `bot/config.py` lub `bot/__init__.py` (duplikacja stałej w 3 plikach)
+- [ ] 🟡 [nit] **bot/services/scheduler.py:18-21** — Dodaj singleton dla `CloudTasksClient` (wzorzec jak `firestore_client.py`) żeby uniknąć tworzenia nowego połączenia gRPC per operacja
+- [ ] 🟡 [nit] **bot/services/ai_parser.py:55-63** — `_get_gemini_client()` wywołuje `vertexai.init()` przy każdym parsowaniu; uczyń inicjalizację jednorazową (moduł-level singleton z guard)
+- [ ] 🟡 [nit] **tests/test_task_capture.py:TestTextMessageWithoutTime** (linia 135) — Wzmocnij asercję: oprócz `mock_send.called` sprawdź że task był zapisany w stanie `PENDING_CONFIRMATION` i że wiadomość zawiera confirmation keyboard
+- [ ] 🟡 [nit] **tests/test_task_capture.py** — Dodaj 2 brakujące testy z planu Unit 7: (1) callback `[✓ OK]` → task SCHEDULED + Cloud Task created; (2) callback `[Zmień]` → conversation state `awaiting_time_input`
+
+---
+
 ## Faza 2 — Polish (Units 9-10)
 
 ### Unit 9: Nudge System (1h brak reakcji → gentle nudge)

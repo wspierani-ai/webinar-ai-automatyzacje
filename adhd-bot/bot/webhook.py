@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import os
 import time
 import logging
@@ -23,7 +24,9 @@ MAX_UPDATE_AGE_SECONDS = 120
 def _verify_secret_token(x_telegram_bot_api_secret_token: str | None) -> None:
     """Raise 401 if the secret token header is missing or wrong."""
     expected = os.environ.get("TELEGRAM_SECRET_TOKEN", "")
-    if not x_telegram_bot_api_secret_token or x_telegram_bot_api_secret_token != expected:
+    if not x_telegram_bot_api_secret_token or not hmac.compare_digest(
+        x_telegram_bot_api_secret_token, expected
+    ):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -76,27 +79,42 @@ async def telegram_webhook(
     await mark_processed(db, update_id)
 
     # 4. Route to appropriate handler
-    await _route_update(body)
+    # Always return 200 to Telegram — processing errors must not cause retries
+    try:
+        await _route_update(body, db)
+    except Exception:
+        logger.exception("Unhandled error in _route_update for update_id %s", update_id)
 
     return JSONResponse(content={"ok": True})
 
 
-async def _route_update(body: dict[str, Any]) -> None:
+async def _route_update(body: dict[str, Any], db) -> None:
     """Route update to the correct handler."""
-    # Handlers registered in later units
+    from bot.handlers.callback_handlers import dispatch_callback
+    from bot.handlers.command_handlers import dispatch_command
+    from bot.handlers.message_handlers import handle_text_message, handle_voice_message
+
     message = body.get("message")
     callback_query = body.get("callback_query")
 
     if callback_query:
         logger.debug("Received callback_query, routing to callback handler")
+        await dispatch_callback(callback_query, db)
         return
 
     if message:
         text = message.get("text", "")
+        voice = message.get("voice")
         if text.startswith("/"):
             logger.debug("Received command: %s", text)
+            await dispatch_command(message, db)
             return
-        logger.debug("Received message, routing to message handler")
+        if voice:
+            logger.debug("Received voice message, routing to voice handler")
+            await handle_voice_message(message, db)
+            return
+        logger.debug("Received text message, routing to message handler")
+        await handle_text_message(message, db)
         return
 
     logger.debug("Unknown update type, ignoring")

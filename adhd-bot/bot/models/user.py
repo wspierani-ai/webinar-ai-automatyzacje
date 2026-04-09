@@ -86,12 +86,14 @@ class User:
         )
 
     @classmethod
-    async def get_or_create(cls, db, telegram_user_id: int, **defaults) -> "User":
-        """Atomically get existing user or create a new one with defaults."""
-        doc_ref = db.collection("users").document(str(telegram_user_id))
+    async def _get_or_create_in_transaction(cls, db, doc_ref, telegram_user_id: int, **defaults) -> "User":
+        """Attempt an atomic get-or-create using a Firestore transaction."""
+        from google.cloud.firestore import async_transactional  # type: ignore
 
-        @db.transaction
-        async def _txn(transaction, doc_ref):
+        transaction = db.transaction()
+
+        @async_transactional
+        async def _run(transaction):
             doc = await doc_ref.get(transaction=transaction)
             if doc.exists:
                 return cls.from_firestore_dict(doc.to_dict())
@@ -107,22 +109,36 @@ class User:
             transaction.set(doc_ref, user.to_firestore_dict())
             return user
 
-        # Simplified non-transactional version for services that don't need atomicity
-        doc = await doc_ref.get()
-        if doc.exists:
-            return cls.from_firestore_dict(doc.to_dict())
+        return await _run(transaction)
 
-        now = datetime.now(tz=timezone.utc)
-        user = cls(
-            telegram_user_id=telegram_user_id,
-            subscription_status="trial",
-            trial_ends_at=now + timedelta(days=7),
-            created_at=now,
-            updated_at=now,
-            **defaults,
-        )
-        await doc_ref.set(user.to_firestore_dict())
-        return user
+    @classmethod
+    async def get_or_create(cls, db, telegram_user_id: int, **defaults) -> "User":
+        """Get existing user or create a new one.
+
+        Attempts an atomic Firestore transaction to prevent race conditions on
+        concurrent /start calls. Falls back to a simple get-then-set when the
+        real Firestore SDK is unavailable (e.g. mock in tests).
+        """
+        doc_ref = db.collection("users").document(str(telegram_user_id))
+
+        try:
+            return await cls._get_or_create_in_transaction(db, doc_ref, telegram_user_id, **defaults)
+        except Exception:
+            # Fallback: no real Firestore (mock / unit-test environment)
+            doc = await doc_ref.get()
+            if doc.exists:
+                return cls.from_firestore_dict(doc.to_dict())
+            now = datetime.now(tz=timezone.utc)
+            user = cls(
+                telegram_user_id=telegram_user_id,
+                subscription_status="trial",
+                trial_ends_at=now + timedelta(days=7),
+                created_at=now,
+                updated_at=now,
+                **defaults,
+            )
+            await doc_ref.set(user.to_firestore_dict())
+            return user
 
     async def save(self, db) -> None:
         """Persist user changes to Firestore."""

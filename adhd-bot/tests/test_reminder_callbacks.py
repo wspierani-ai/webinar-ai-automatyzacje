@@ -108,17 +108,21 @@ class TestSnooze30Min:
 
         with patch("bot.handlers.callback_handlers._answer_callback_query", new_callable=AsyncMock), \
              patch("bot.handlers.callback_handlers.cancel_reminder", new_callable=AsyncMock), \
-             patch("bot.handlers.callback_handlers.snooze_reminder", new_callable=AsyncMock, return_value="new-task-name"), \
+             patch("bot.handlers.callback_handlers.snooze_reminder", new_callable=AsyncMock, return_value="new-task-name") as mock_snooze, \
              patch("bot.handlers.callback_handlers._edit_message_reply_markup", new_callable=AsyncMock, return_value=True):
             await handle_snooze_callback(
                 _make_callback_query("snooze:30m:task-001"), "30m", "task-001", db
             )
 
         after = datetime.now(tz=timezone.utc)
-        # Task should be in SNOOZED state after handler
-        # Verify snooze_reminder was called with ~30 min ahead
-        from bot.handlers.callback_handlers import snooze_reminder as sr_module
-        # Just verify it runs without error (full assertion via integration)
+        # Verify snooze_reminder was called with new_fire_at ≈ now + 30min (±5s tolerance)
+        mock_snooze.assert_called_once()
+        _task_id_arg, _old_ct_name_arg, new_fire_at, _db_arg = mock_snooze.call_args[0]
+        expected_min = before + timedelta(minutes=30)
+        expected_max = after + timedelta(minutes=30)
+        assert expected_min <= new_fire_at <= expected_max, (
+            f"Expected new_fire_at between {expected_min} and {expected_max}, got {new_fire_at}"
+        )
 
 
 class TestSnooze2h:
@@ -129,14 +133,31 @@ class TestSnooze2h:
         task = _make_reminded_task()
         user = User(telegram_user_id=12345, timezone="Europe/Warsaw")
         db = _make_db_with_task_and_user(task, user)
+        before = datetime.now(tz=timezone.utc)
 
         with patch("bot.handlers.callback_handlers._answer_callback_query", new_callable=AsyncMock), \
              patch("bot.handlers.callback_handlers.cancel_reminder", new_callable=AsyncMock), \
-             patch("bot.handlers.callback_handlers.snooze_reminder", new_callable=AsyncMock, return_value="new-name"), \
+             patch("bot.handlers.callback_handlers.snooze_reminder", new_callable=AsyncMock, return_value="new-name") as mock_snooze, \
              patch("bot.handlers.callback_handlers._edit_message_reply_markup", new_callable=AsyncMock, return_value=True):
             await handle_snooze_callback(
                 _make_callback_query("snooze:2h:task-001"), "2h", "task-001", db
             )
+
+        after = datetime.now(tz=timezone.utc)
+        # Verify snooze_reminder was called with new_fire_at ≈ now + 2h (±5s tolerance)
+        mock_snooze.assert_called_once()
+        _task_id_arg, _old_ct_name_arg, new_fire_at, _db_arg = mock_snooze.call_args[0]
+        expected_min = before + timedelta(hours=2)
+        expected_max = after + timedelta(hours=2)
+        assert expected_min <= new_fire_at <= expected_max, (
+            f"Expected new_fire_at between {expected_min} and {expected_max}, got {new_fire_at}"
+        )
+        # Verify task transitioned to SNOOZED state
+        task_doc_ref = db._task_doc_ref
+        task_doc_ref.set.assert_called()
+        saved = task_doc_ref.set.call_args[0][0]
+        from bot.models.task import TaskState
+        assert saved["state"] == TaskState.SNOOZED.value
 
 
 class TestSnoozeMorningWithMorningTime:

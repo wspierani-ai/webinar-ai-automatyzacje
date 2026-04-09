@@ -6,7 +6,7 @@ import logging
 import os
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from bot.services.firestore_client import get_firestore_client
@@ -16,6 +16,36 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/internal")
 
 TELEGRAM_BASE_URL = "https://api.telegram.org"
+
+_INTERNAL_AUDIENCE = os.environ.get("CLOUD_RUN_SERVICE_URL", "")
+
+
+def _verify_oidc_token(authorization: str | None) -> None:
+    """Verify that the request carries a valid Google OIDC token issued for
+    this service.  Raises HTTP 401 on failure.
+
+    In test environments (TESTING=1) verification is skipped.
+    """
+    if os.environ.get("TESTING") == "1":
+        return
+
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing OIDC token")
+
+    token = authorization.removeprefix("Bearer ").strip()
+    try:
+        from google.auth.transport import requests as google_requests  # type: ignore
+        from google.oauth2 import id_token  # type: ignore
+
+        audience = _INTERNAL_AUDIENCE or None
+        id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            audience=audience,
+        )
+    except Exception as exc:
+        logger.warning("OIDC token verification failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid OIDC token") from exc
 
 
 def _build_reminder_keyboard(task_id: str) -> dict:
@@ -77,11 +107,16 @@ async def _get_task_and_user(db, task_id: str):
 
 
 @router.post("/trigger-reminder")
-async def trigger_reminder(request: Request) -> JSONResponse:
+async def trigger_reminder(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
     """Triggered by Cloud Tasks to send a reminder to the user.
 
+    Requires a valid OIDC token in Authorization header (issued by Cloud Tasks).
     Idempotent: if task is already in REMINDED state, returns 200 without resending.
     """
+    _verify_oidc_token(authorization)
     from bot.models.task import TaskState
     from bot.services.scheduler import schedule_nudge
 
@@ -154,11 +189,16 @@ async def trigger_reminder(request: Request) -> JSONResponse:
 
 
 @router.post("/trigger-nudge")
-async def trigger_nudge(request: Request) -> JSONResponse:
+async def trigger_nudge(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
     """Triggered by Cloud Tasks to send a gentle nudge for tasks with no response.
 
+    Requires a valid OIDC token in Authorization header (issued by Cloud Tasks).
     Only sends if task is still in REMINDED state (idempotent guard).
     """
+    _verify_oidc_token(authorization)
     from bot.models.task import TaskState
 
     body: dict = await request.json()
