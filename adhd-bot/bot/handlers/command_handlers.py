@@ -151,6 +151,8 @@ async def handle_morning(message: dict, db) -> None:
 
 async def dispatch_command(message: dict, db) -> None:
     """Route command to appropriate handler."""
+    from bot.handlers.payment_command_handlers import handle_billing, handle_subscribe
+
     text = message.get("text", "")
     command = text.split()[0].lower() if text.split() else ""
 
@@ -160,5 +162,9 @@ async def dispatch_command(message: dict, db) -> None:
         await handle_timezone(message, db)
     elif command == "/morning":
         await handle_morning(message, db)
+    elif command == "/subscribe":
+        await handle_subscribe(message, db)
+    elif command == "/billing":
+        await handle_billing(message, db)
     else:
         logger.debug("Unknown command: %s", command)

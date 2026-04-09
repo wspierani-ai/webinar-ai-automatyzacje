@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Kontekst techniczny
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09 (Faza 2 zaimplementowana)
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 3 zaimplementowana)
 
 ## Powiązane pliki źródłowe
 
@@ -246,7 +246,7 @@ Unit 3  ─→ Unit 21
 |------|--------|------|
 | Faza 1 — Core Bot (Units 1-8) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 2 — Polish (Units 9-10) | ✅ Zaimplementowana | 2026-04-09 |
-| Faza 3 — Monetyzacja (Unit 11) | ⬜ Do zrobienia | — |
+| Faza 3 — Monetyzacja (Unit 11) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 4 — Google Integration (Units 12-14) | ⬜ Do zrobienia | — |
 | Faza 5 — Admin Dashboard + Security (Units 15-18) | ⬜ Do zrobienia | — |
 | Faza 6 — Checklista + RODO (Units 19-21) | ⬜ Do zrobienia | — |
@@ -348,6 +348,83 @@ Faza 1 jest gotowa do kontynuacji. Wszystkie P2 naprawione. Implementacja jest f
 - `cancel_reminder` importowany na poziomie modułu w `cleanup_handler.py` (umożliwia mockowanie w testach)
 - Cleanup jest idempotentny — bezpieczne do wielokrotnego wywołania
 - Każda z 3 faz cleanup (trial, grace_period, orphaned tasks) jest niezależnie obsługiwana z osobnym try/except
+
+## Review Fazy 2 (2026-04-09)
+
+**Wynik:** ⚠️ KONTYNUUJ Z ZASTRZEŻENIAMI — P1=0, P2=3, P3=4  
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-2.md`
+
+### P2 — wymagają naprawy
+
+- `cleanup_handler.py:55` + `internal_triggers.py:46` — `except Exception` zbyt szeroki w `_verify_oidc_token` — maskuje błędy konfiguracji jako 401; należy zawęzić do `GoogleAuthError`, `TransportError`, `ValueError`
+- `cleanup_handler.py:106-111` — natychmiastowe blokowanie `grace_period` usera gdy `grace_period_until is None` bez logu warning; ryzyko silent blocking po Unit 11 Stripe integration
+- `cleanup_handler.py:148-167` — N+1 Firestore writes: 2 oddzielne `.update()` dla cloud_task_name i nudge_task_name zamiast jednego wywołania; przy skali → timeout cleanup jobu
+
+## Review Fazy 2 — re-run cykl 1 (weryfikacja naprawy P2) (2026-04-10)
+
+**Wynik:** ✅ GOTOWE DO KONTYNUACJI — P1=0, P2=0, P3=4  
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-2.md`
+
+### P2 z cyklu 0 re-run — naprawione ✅
+
+- `cleanup_handler.py:56` + `internal_triggers.py:47` — zmienione z `except Exception:` na `except (GoogleAuthError, TransportError, ValueError):` — ✅ ZWERYFIKOWANE
+  - Import przeniesiony wewnątrz bloku try (lazy import) — wzorzec spójny z Fazą 1
+- `cleanup_handler.py:106-112` — dodano `logger.warning(...)` + zmieniono natychmiastowy block na `continue` (skip) — ✅ ZWERYFIKOWANE
+  - Użytkownik z `grace_period_until is None` nie jest już blokowany, lecz logowany jako warning
+- `cleanup_handler.py:149-160` — scalone dwa oddzielne `.update()` w jeden `update_data: dict` builder z jednym `doc.reference.update(update_data)` — ✅ ZWERYFIKOWANE
+  - N+1 writes → 1 write per task; count prawidłowo inkrementowany jeden raz per task
+
+### Łącznie naprawione P2 (3/3)
+- `except Exception` w OIDC verify (cleanup_handler + internal_triggers) — ✅
+- `grace_period_until is None` → log warning + skip zamiast immediate block — ✅
+- N+1 Firestore writes → scalony do 1 update per task — ✅
+
+### Pozostałe P3 (nieblokujące — do rozważenia w Unit 18)
+- Duplikacja `_verify_oidc_token` w 2 plikach — odłożone do Unit 18 Security Hardening
+- `TELEGRAM_BASE_URL` carry-over z Fazy 1 — nadal nienaprawione (P3)
+- Brak testów dla PENDING_CONFIRMATION i SCHEDULED w test_nudge.py
+- Brak testu dla task z oboma cloud_task_name + nudge_task_name w test_cleanup.py
+
+### P3 — odłożone do Unit 18 lub kolejnej fazy
+
+- Duplikacja `_verify_oidc_token` w 2 plikach (cleanup_handler + internal_triggers) — wyciągnąć w Unit 18
+- `TELEGRAM_BASE_URL` carry-over z Fazy 1 (P3 nadal otwarty)
+- Brak testów dla stanów PENDING_CONFIRMATION i SCHEDULED w test_nudge.py
+- Brak testu dla task z oboma cloud_task_name + nudge_task_name w test_cleanup.py
+
+### Kluczowe wnioski
+
+Faza 2 jest gotowa do kontynuacji z zastrzeżeniami. Implementacja idempotentna i poprawna funkcjonalnie. Główne P2 są w obszarze error handling (zbyt szeroki except) i performance (N+1 writes). Nie ma regresji w stosunku do Fazy 1.
+
+**Dobre wzorce potwierdzone:**
+- State-based idempotency guards w trigger-nudge — spójne z Fazą 1
+- Niezależne try/except dla każdej fazy cleanup — poprawna izolacja błędów
+- YAML z komentarzem deploy CLI — dobra dokumentacja infra
+- Cleanup idempotentny — bezpieczny do wielokrotnego wywołania
+
+## Zmiany w Fazie 3 (2026-04-09)
+
+### Stworzone pliki
+- `adhd-bot/bot/services/stripe_service.py` — Stripe Customer, Checkout Session, event deduplication, event handlers (4 eventy)
+- `adhd-bot/bot/handlers/stripe_webhook_handler.py` — `/stripe/webhook` endpoint z weryfikacją sygnatury, deduplication, routing
+- `adhd-bot/bot/handlers/payment_command_handlers.py` — /subscribe (tworzy Checkout Session) + /billing (status subskrypcji)
+- `adhd-bot/tests/test_stripe_service.py` — 14 testów serwisu Stripe
+- `adhd-bot/tests/test_stripe_webhooks.py` — 12 testów webhook handlera
+
+### Zmodyfikowane pliki
+- `adhd-bot/main.py` — podpięty stripe_router
+- `adhd-bot/bot/handlers/command_handlers.py` — routing /subscribe i /billing
+
+### Testy (152 testy łącznie, wszystkie przechodzą)
+- `tests/test_stripe_service.py` — 14 testów (Customer create/get, Checkout Session PLN, deduplication, 4 event handlers)
+- `tests/test_stripe_webhooks.py` — 12 testów (signature verification, deduplication, event routing, blocked user)
+
+### Kluczowe decyzje implementacyjne
+- Stripe Customer tworzony lazy (przy /subscribe, nie przy /start) — mniej Stripe API calls dla trial userów
+- Deduplication przez `stripe_events/{event_id}` — mark-before-handle (write before processing), spójny wzorzec z telegram dedup
+- TESTING=1 mode pomija weryfikację sygnatury Stripe — umożliwia testy bez prawdziwego webhook secret
+- `handle_invoice_payment_failed` szuka usera po `stripe_customer_id` — obsługuje eventy bez telegram_user_id w metadata
+- Grace period: 3 dni po `invoice.payment_failed`, cleanup job (Unit 10) blokuje po wygaśnięciu
 
 ## Źródła
 

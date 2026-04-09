@@ -244,27 +244,39 @@ last_updated: 2026-04-09
 
 ---
 
+## Do poprawy po review fazy 2
+
+- [x] 🟠 [important] **bot/handlers/cleanup_handler.py:55** + **bot/handlers/internal_triggers.py:46** — Zawęź `except Exception` w `_verify_oidc_token` do konkretnych typów `GoogleAuthError`, `TransportError`, `ValueError`; generyczny catch maskuje błędy konfiguracji jako 401 — naprawione ✅ (re-run cykl 1 2026-04-10)
+- [x] 🟠 [important] **bot/handlers/cleanup_handler.py:106-111** — Dodaj `logger.warning` dla case `grace_period_until is None` (silent blocking bez logu utrudnia diagnozę); rozwaź `continue` (skip) zamiast natychmiastowego blokowania gdy pole brakuje — naprawione ✅ (re-run cykl 1 2026-04-10)
+- [x] 🟠 [important] **bot/handlers/cleanup_handler.py:148-167** — Scal dwa oddzielne `doc.reference.update()` (dla `cloud_task_name` i `nudge_task_name`) w jedno wywołanie; obecny N+1 pattern przy 1000+ COMPLETED taskach → timeout cleanup jobu — naprawione ✅ (re-run cykl 1 2026-04-10)
+- [ ] 🟡 [nit] **bot/handlers/cleanup_handler.py** + **bot/handlers/internal_triggers.py** — Duplikacja `_verify_oidc_token` w 2 plikach; wyciągnij do wspólnego modułu (naturalne miejsce: Unit 18 Security Hardening)
+- [ ] 🟡 [nit] **bot/handlers/internal_triggers.py:18** — `TELEGRAM_BASE_URL` carry-over z Fazy 1; wyciągnij do `bot/config.py`
+- [ ] 🟡 [nit] **tests/test_nudge.py** — Dodaj testy dla stanów `PENDING_CONFIRMATION` i `SCHEDULED` (nie tylko COMPLETED/SNOOZED/NUDGED/REJECTED)
+- [ ] 🟡 [nit] **tests/test_cleanup.py** — Dodaj test dla task z oboma `cloud_task_name` i `nudge_task_name` ustawionymi (weryfikuje że `cancel_reminder` wywołany 2x, count=1)
+
+---
+
 ## Faza 3 — Monetyzacja (Unit 11)
 
 ### Unit 11: Stripe Subscription (trial, payment, grace period, blokada)
 
-- [ ] Stwórz `adhd-bot/bot/services/stripe_service.py`
-- [ ] Stwórz `adhd-bot/bot/handlers/stripe_webhook_handler.py` (router `/stripe/webhook`)
-- [ ] Stwórz `adhd-bot/bot/handlers/payment_command_handlers.py` (`/subscribe`, `/billing`)
-- [ ] Stwórz `adhd-bot/tests/test_stripe_service.py`
-- [ ] Stwórz `adhd-bot/tests/test_stripe_webhooks.py`
+- [x] Stwórz `adhd-bot/bot/services/stripe_service.py`
+- [x] Stwórz `adhd-bot/bot/handlers/stripe_webhook_handler.py` (router `/stripe/webhook`)
+- [x] Stwórz `adhd-bot/bot/handlers/payment_command_handlers.py` (`/subscribe`, `/billing`)
+- [x] Stwórz `adhd-bot/tests/test_stripe_service.py`
+- [x] Stwórz `adhd-bot/tests/test_stripe_webhooks.py`
 - [ ] Utwórz Stripe Price ID 29.99 PLN/mies. w Stripe Dashboard (test mode)
-- [ ] Zaimplementuj Stripe Customer create przy `/start`
-- [ ] Zaimplementuj deduplication przez `stripe_events/{event_id}` w Firestore
-- [ ] Zaimplementuj obsługę: `checkout.session.completed`, `invoice.payment_failed`, `invoice.payment_succeeded`, `customer.subscription.deleted`
-- [ ] Test: `/subscribe` tworzy Stripe Checkout Session z `currency="PLN"`, poprawnym `price_id`
-- [ ] Test: `checkout.session.completed` webhook → `subscription_status="active"`, `stripe_subscription_id` zapisany
-- [ ] Test: `invoice.payment_failed` webhook → `subscription_status="grace_period"`, `grace_period_until=now+3d`
-- [ ] Test: `invoice.payment_succeeded` webhook → `subscription_status="active"`, `grace_period_until=None`
-- [ ] Test: `customer.subscription.deleted` webhook → `subscription_status="blocked"`
-- [ ] Test: Duplicate Stripe `event.id` → 200, brak drugiego przetworzenia
-- [ ] Test: Webhook z błędnym `STRIPE_WEBHOOK_SECRET` → 400
-- [ ] Test: Blocked user wysyła wiadomość → komunikat blokady + link `/subscribe`
+- [x] Zaimplementuj Stripe Customer create przy `/subscribe` (lazy — przy pierwszym zakupie)
+- [x] Zaimplementuj deduplication przez `stripe_events/{event_id}` w Firestore
+- [x] Zaimplementuj obsługę: `checkout.session.completed`, `invoice.payment_failed`, `invoice.payment_succeeded`, `customer.subscription.deleted`
+- [x] Test: `/subscribe` tworzy Stripe Checkout Session z `currency="PLN"`, poprawnym `price_id`
+- [x] Test: `checkout.session.completed` webhook → `subscription_status="active"`, `stripe_subscription_id` zapisany
+- [x] Test: `invoice.payment_failed` webhook → `subscription_status="grace_period"`, `grace_period_until=now+3d`
+- [x] Test: `invoice.payment_succeeded` webhook → `subscription_status="active"`, `grace_period_until=None`
+- [x] Test: `customer.subscription.deleted` webhook → `subscription_status="blocked"`
+- [x] Test: Duplicate Stripe `event.id` → 200, brak drugiego przetworzenia
+- [x] Test: Webhook z błędnym `STRIPE_WEBHOOK_SECRET` → 400
+- [x] Test: Blocked user wysyła wiadomość → komunikat blokady + link `/subscribe`
 - [ ] Test [E2E]: Przejdź przez Stripe Checkout Sandbox → `subscription_status="active"` w Firestore
 - [ ] Weryfikacja: Stripe Dashboard pokazuje subskrypcję po pełnym `/subscribe` flow
 - [ ] Weryfikacja: `payment_failed` webhook aktualizuje status w Firestore w ciągu 30s
