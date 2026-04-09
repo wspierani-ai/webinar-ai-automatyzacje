@@ -198,21 +198,28 @@ last_updated: 2026-04-09
 - [ ] 🟡 [nit] **tests/test_task_capture.py:TestTextMessageWithoutTime** (linia 135) — Wzmocnij asercję: oprócz `mock_send.called` sprawdź że task był zapisany w stanie `PENDING_CONFIRMATION` i że wiadomość zawiera confirmation keyboard
 - [ ] 🟡 [nit] **tests/test_task_capture.py** — Dodaj 2 brakujące testy z planu Unit 7: (1) callback `[✓ OK]` → task SCHEDULED + Cloud Task created; (2) callback `[Zmień]` → conversation state `awaiting_time_input`
 
+## Do poprawy po re-run review fazy 1
+
+- [x] 🟠 [important] **bot/models/user.py:126** — `except Exception:` zmienione na `except (ImportError, AttributeError, TypeError):` — naprawa zweryfikowana ✅ (cykl 2 re-run 2026-04-09)
+- [ ] 🟡 [nit] **bot/handlers/callback_handlers.py:17**, **internal_triggers.py:18**, **message_handlers.py:17** — `TELEGRAM_BASE_URL` nadal zduplikowany w 3 plikach; wyciągnij do `bot/config.py`
+- [ ] 🟡 [nit] **bot/services/scheduler.py:18-21** — `_get_tasks_client()` tworzy nową instancję `CloudTasksClient` per wywołanie; dodaj singleton jak w `firestore_client.py`
+- [ ] 🟡 [nit] **bot/services/ai_parser.py** — `_get_gemini_client()` wywołuje `vertexai.init()` przy każdym parsowaniu; uczyń jednorazową (moduł-level singleton z guard)
+
 ---
 
 ## Faza 2 — Polish (Units 9-10)
 
 ### Unit 9: Nudge System (1h brak reakcji → gentle nudge)
 
-- [ ] Modyfikuj `adhd-bot/bot/handlers/internal_triggers.py` (implementacja `/internal/trigger-nudge`)
-- [ ] Stwórz `adhd-bot/tests/test_nudge.py`
-- [ ] Zaimplementuj scheduling nudge Cloud Task za 60 min po wysłaniu remindera (queue: `nudges`)
-- [ ] Zaimplementuj state-based guard: `task.state != REMINDED` → 200 bez akcji
-- [ ] Test: `trigger-nudge` z `task.state=REMINDED` → wysyła nudge message, `task.state=NUDGED`
-- [ ] Test: `trigger-nudge` z `task.state=COMPLETED` → 200, brak nudge
-- [ ] Test: `trigger-nudge` z `task.state=SNOOZED` → 200, brak nudge
-- [ ] Test: `trigger-nudge` z `task.state=NUDGED` → 200, brak drugiego nudge (idempotent)
-- [ ] Test: Nudge message zawiera `task.content`
+- [x] Modyfikuj `adhd-bot/bot/handlers/internal_triggers.py` (implementacja `/internal/trigger-nudge`)
+- [x] Stwórz `adhd-bot/tests/test_nudge.py`
+- [x] Zaimplementuj scheduling nudge Cloud Task za 60 min po wysłaniu remindera (queue: `nudges`)
+- [x] Zaimplementuj state-based guard: `task.state != REMINDED` → 200 bez akcji
+- [x] Test: `trigger-nudge` z `task.state=REMINDED` → wysyła nudge message, `task.state=NUDGED`
+- [x] Test: `trigger-nudge` z `task.state=COMPLETED` → 200, brak nudge
+- [x] Test: `trigger-nudge` z `task.state=SNOOZED` → 200, brak nudge
+- [x] Test: `trigger-nudge` z `task.state=NUDGED` → 200, brak drugiego nudge (idempotent)
+- [x] Test: Nudge message zawiera `task.content`
 - [ ] Weryfikacja: Task w `REMINDED` przez 1h → nudge wysłany (test staging z `fire_at=now+65s`)
 - [ ] Weryfikacja: Task `COMPLETED` przed upływem 1h → nudge nie wysłany (sprawdź Firestore state)
 
@@ -220,18 +227,18 @@ last_updated: 2026-04-09
 
 ### Unit 10: Auto-Archival + Orphan Cloud Task Cleanup
 
-- [ ] Stwórz `adhd-bot/infra/firestore-indexes.json` (TTL policy config dla kolekcji `tasks`, pole `expires_at`)
-- [ ] Stwórz `adhd-bot/bot/handlers/cleanup_handler.py` (endpoint `/internal/cleanup`)
-- [ ] Stwórz `adhd-bot/infra/cloud-scheduler-cleanup.yaml` (cron `0 3 * * *`)
-- [ ] Stwórz `adhd-bot/tests/test_cleanup.py`
+- [x] Stwórz `adhd-bot/infra/firestore-indexes.json` (TTL policy config dla kolekcji `tasks`, pole `expires_at`)
+- [x] Stwórz `adhd-bot/bot/handlers/cleanup_handler.py` (endpoint `/internal/cleanup`)
+- [x] Stwórz `adhd-bot/infra/cloud-scheduler-cleanup.yaml` (cron `0 3 * * *`)
+- [x] Stwórz `adhd-bot/tests/test_cleanup.py`
 - [ ] Skonfiguruj Firestore TTL: `gcloud firestore fields ttls update expires_at --collection-group=tasks`
-- [ ] Zaimplementuj cleanup: expired trial → blocked, expired grace_period → blocked
-- [ ] Zaimplementuj cleanup: orphaned Cloud Tasks delete (ignore NOT_FOUND)
-- [ ] Test: Cleanup aktualizuje `subscription_status="blocked"` dla expired trial users
-- [ ] Test: Cleanup aktualizuje `subscription_status="blocked"` dla expired grace_period users
-- [ ] Test: Cleanup usuwa orphaned Cloud Tasks (mock tasks_client)
-- [ ] Test: Cleanup z pustą listą → 200, brak błędów
-- [ ] Test: `/internal/cleanup` bez OIDC auth → 401
+- [x] Zaimplementuj cleanup: expired trial → blocked, expired grace_period → blocked
+- [x] Zaimplementuj cleanup: orphaned Cloud Tasks delete (ignore NOT_FOUND)
+- [x] Test: Cleanup aktualizuje `subscription_status="blocked"` dla expired trial users
+- [x] Test: Cleanup aktualizuje `subscription_status="blocked"` dla expired grace_period users
+- [x] Test: Cleanup usuwa orphaned Cloud Tasks (mock tasks_client)
+- [x] Test: Cleanup z pustą listą → 200, brak błędów
+- [x] Test: `/internal/cleanup` bez OIDC auth → 401
 - [ ] Weryfikacja: Task z `expires_at = now() - 31 days` znika z Firestore w ciągu 25h (TTL propagation)
 - [ ] Weryfikacja: Cleanup job w Cloud Scheduler widoczny jako `SUCCESS` w GCP Console
 

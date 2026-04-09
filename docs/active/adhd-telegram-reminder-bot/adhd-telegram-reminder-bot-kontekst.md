@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Kontekst techniczny
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09 (Faza 1 zaimplementowana)
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 2 zaimplementowana)
 
 ## Powiązane pliki źródłowe
 
@@ -245,7 +245,7 @@ Unit 3  ─→ Unit 21
 | Faza | Status | Data |
 |------|--------|------|
 | Faza 1 — Core Bot (Units 1-8) | ✅ Zaimplementowana | 2026-04-09 |
-| Faza 2 — Polish (Units 9-10) | ⬜ Do zrobienia | — |
+| Faza 2 — Polish (Units 9-10) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 3 — Monetyzacja (Unit 11) | ⬜ Do zrobienia | — |
 | Faza 4 — Google Integration (Units 12-14) | ⬜ Do zrobienia | — |
 | Faza 5 — Admin Dashboard + Security (Units 15-18) | ⬜ Do zrobienia | — |
@@ -291,6 +291,63 @@ Unit 3  ─→ Unit 21
 - Cloud Tasks i google.cloud.tasks_v2 mockowane przez `sys.modules` patch w testach
 - `get_firestore_client` importowany na poziomie modułu w `internal_triggers.py` (nie wewnątrz funkcji)
 - Testy callback_handlers używają `db._task_doc_ref` i `db._user_doc_ref` do dokładniejszych asercji
+
+## Review Fazy 1 — re-run cykl 2 (weryfikacja naprawy P2) (2026-04-09)
+
+**Wynik:** ✅ GOTOWE DO KONTYNUACJI — P1=0, P2=0, P3=3  
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-1.md`
+
+### P2 z cyklu 1 re-run — naprawione ✅
+- `user.py:126` — zmienione z `except Exception:` na `except (ImportError, AttributeError, TypeError):` — ✅ ZWERYFIKOWANE
+  - Naprawa skuteczna: nie łapie już `Aborted`, `DeadlineExceeded`, `PermissionDenied` z Firestore SDK
+  - 106 testów przechodzi po zmianie
+  - Race condition w produkcji zabezpieczone
+
+### Łącznie naprawione P2 (8/8)
+- hmac.compare_digest() w webhook.py — ✅
+- OIDC auth na /internal/* — ✅
+- MagicMock poza kodem produkcyjnym w firestore_client.py — ✅
+- Atomiczna transakcja get_or_create w user.py — ✅
+- Routery podpięte w main.py, routing w _route_update — ✅
+- infra/firestore-indexes.json stworzony — ✅
+- TestSnooze30Min + TestSnooze2h mają asercje — ✅
+- `except Exception:` zbyt szeroki w user.py:126 — ✅
+
+### Pozostałe P3 (nieblokujące — do rozważenia w Fazie 2)
+- `TELEGRAM_BASE_URL` zduplikowany w 3 plikach — wyciągnij do config.py
+- `CloudTasksClient` bez singleton w scheduler.py
+- `vertexai.init()` przy każdym parsowaniu w ai_parser.py
+
+### Kluczowe wnioski
+
+Faza 1 jest gotowa do kontynuacji. Wszystkie P2 naprawione. Implementacja jest funkcjonalna end-to-end z prawidłową security (hmac, OIDC), transakcjami atomicznymi, idempotency guards i pokryciem testów.
+
+**Dobre wzorce do kontynuacji:**
+- State machine z explicit `ALLOWED_TRANSITIONS` + typed errors — dobry wzorzec
+- Graceful fallback w `ai_parser.py` — poprawny
+- Idempotency guards w trigger-reminder/nudge — poprawne
+- Deduplication przez Firestore TTL bez Redis — właściwa decyzja dla MVP
+
+## Zmiany w Fazie 2 (2026-04-09)
+
+### Stworzone pliki
+- `adhd-bot/bot/handlers/cleanup_handler.py` — /internal/cleanup endpoint (OIDC auth, expired subscriptions, orphaned Cloud Tasks)
+- `adhd-bot/infra/cloud-scheduler-cleanup.yaml` — Cloud Scheduler cron 0 3 * * * Europe/Warsaw
+- `adhd-bot/tests/test_nudge.py` — 9 testów Nudge System (Unit 9)
+- `adhd-bot/tests/test_cleanup.py` — 9 testów Auto-Archival + Cleanup (Unit 10)
+
+### Zmodyfikowane pliki
+- `adhd-bot/main.py` — podpięty cleanup_router
+- `adhd-bot/infra/firestore-indexes.json` — dodany TTL fieldOverride dla `tasks.expires_at`
+
+### Testy (124 testy łącznie, wszystkie przechodzą)
+- `tests/test_nudge.py` — 9 testów (happy path + idempotency guards dla wszystkich stanów)
+- `tests/test_cleanup.py` — 9 testów (trial expiry, grace_period expiry, orphaned tasks, empty data, 401 auth)
+
+### Kluczowe decyzje implementacyjne
+- `cancel_reminder` importowany na poziomie modułu w `cleanup_handler.py` (umożliwia mockowanie w testach)
+- Cleanup jest idempotentny — bezpieczne do wielokrotnego wywołania
+- Każda z 3 faz cleanup (trial, grace_period, orphaned tasks) jest niezależnie obsługiwana z osobnym try/except
 
 ## Źródła
 
