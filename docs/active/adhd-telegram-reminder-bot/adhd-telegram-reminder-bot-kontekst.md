@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Kontekst techniczny
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 1 zaimplementowana)
 
 ## Powiązane pliki źródłowe
 
@@ -239,6 +239,58 @@ Unit 3  ─→ Unit 21
 - `ADMIN_JWT_SECRET`
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 - Cloud KMS key: `projects/{proj}/locations/europe-central2/keyRings/adhd-bot/cryptoKeys/oauth-tokens`
+
+## Status Faz
+
+| Faza | Status | Data |
+|------|--------|------|
+| Faza 1 — Core Bot (Units 1-8) | ✅ Zaimplementowana | 2026-04-09 |
+| Faza 2 — Polish (Units 9-10) | ⬜ Do zrobienia | — |
+| Faza 3 — Monetyzacja (Unit 11) | ⬜ Do zrobienia | — |
+| Faza 4 — Google Integration (Units 12-14) | ⬜ Do zrobienia | — |
+| Faza 5 — Admin Dashboard + Security (Units 15-18) | ⬜ Do zrobienia | — |
+| Faza 6 — Checklista + RODO (Units 19-21) | ⬜ Do zrobienia | — |
+
+## Zmiany w Fazie 1 (2026-04-09)
+
+### Stworzone pliki
+- `adhd-bot/main.py` — FastAPI app, endpoint `/health`
+- `adhd-bot/Dockerfile` — python:3.12-slim + gunicorn + uvicorn
+- `adhd-bot/requirements.txt` — pinowane wersje
+- `adhd-bot/.env.example` — szablon zmiennych środowiskowych
+- `adhd-bot/cloud-run.yaml` — konfiguracja Cloud Run (min-instances=1, 512Mi, europe-central2)
+- `adhd-bot/bot/config.py` — dataclass z fail-fast validation (`__post_init__`)
+- `adhd-bot/bot/webhook.py` — webhook z security (token check → timestamp → dedup → routing)
+- `adhd-bot/bot/services/firestore_client.py` — singleton Firestore client z TESTING mock
+- `adhd-bot/bot/services/deduplication.py` — deduplication przez Firestore TTL
+- `adhd-bot/bot/services/ai_parser.py` — Gemini 2.5 Flash parser (tekst + głos), JSON output
+- `adhd-bot/bot/services/scheduler.py` — Cloud Tasks scheduler (schedule/cancel/snooze/nudge)
+- `adhd-bot/bot/models/user.py` — User dataclass + get_or_create + is_subscription_active
+- `adhd-bot/bot/models/task.py` — Task dataclass + TaskState enum + state machine + InvalidStateTransitionError
+- `adhd-bot/bot/handlers/command_handlers.py` — /start, /timezone, /morning
+- `adhd-bot/bot/handlers/message_handlers.py` — text + voice message handlers
+- `adhd-bot/bot/handlers/callback_handlers.py` — snooze/done/reject/confirm callbacks
+- `adhd-bot/bot/handlers/internal_triggers.py` — /internal/trigger-reminder + /internal/trigger-nudge
+
+### Testy (106 testów, wszystkie przechodzą)
+- `tests/test_config.py` — 8 testów
+- `tests/test_health.py` — 2 testy
+- `tests/test_webhook_security.py` — 6 testów
+- `tests/test_deduplication.py` — 5 testów
+- `tests/test_user_model.py` — 9 testów
+- `tests/test_task_state_machine.py` — 22 testy
+- `tests/test_ai_parser.py` — 13 testów
+- `tests/test_scheduler.py` — 8 testów
+- `tests/test_internal_triggers.py` — 5 testów
+- `tests/test_onboarding.py` — 14 testów
+- `tests/test_task_capture.py` — 5 testów
+- `tests/test_reminder_callbacks.py` — 9 testów
+
+### Kluczowe decyzje implementacyjne
+- Firestore client używa `TESTING=1` env var do mockowania w testach (bez google-cloud-firestore jako dev dep)
+- Cloud Tasks i google.cloud.tasks_v2 mockowane przez `sys.modules` patch w testach
+- `get_firestore_client` importowany na poziomie modułu w `internal_triggers.py` (nie wewnątrz funkcji)
+- Testy callback_handlers używają `db._task_doc_ref` i `db._user_doc_ref` do dokładniejszych asercji
 
 ## Źródła
 

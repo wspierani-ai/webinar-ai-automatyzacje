@@ -1,0 +1,52 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: adhd-bot
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 120
+      containers:
+        - image: gcr.io/PROJECT_ID/adhd-bot:latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: TELEGRAM_BOT_TOKEN
+                  key: latest
+            - name: TELEGRAM_SECRET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: TELEGRAM_SECRET_TOKEN
+                  key: latest
+            - name: GCP_PROJECT_ID
+              value: PROJECT_ID
+            - name: GCP_REGION
+              value: europe-central2
+            - name: CLOUD_RUN_SERVICE_URL
+              value: https://adhd-bot-HASH-lm.a.run.app
+            - name: STRIPE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: STRIPE_API_KEY
+                  key: latest
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: STRIPE_WEBHOOK_SECRET
+                  key: latest
+  traffic:
+    - percent: 100
+      latestRevision: true

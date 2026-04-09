@@ -17,23 +17,23 @@ last_updated: 2026-04-09
 
 ### Unit 1: GCP Infrastructure + Project Scaffold
 
-- [ ] Stwórz `adhd-bot/main.py` (FastAPI app entry point, endpoint `/health`)
-- [ ] Stwórz `adhd-bot/Dockerfile` (python:3.12-slim, gunicorn + uvicorn)
-- [ ] Stwórz `adhd-bot/requirements.txt` z pinowanymi wersjami
-- [ ] Stwórz `adhd-bot/.env.example`
-- [ ] Stwórz `adhd-bot/cloud-run.yaml` (min-instances=1, 512Mi, europe-central2)
-- [ ] Stwórz `adhd-bot/bot/__init__.py`
-- [ ] Stwórz `adhd-bot/bot/config.py` (dataclass, `__post_init__` fail-fast validation)
-- [ ] Stwórz `adhd-bot/bot/handlers/__init__.py`
-- [ ] Stwórz `adhd-bot/bot/models/__init__.py`
-- [ ] Stwórz `adhd-bot/bot/services/__init__.py`
-- [ ] Stwórz `adhd-bot/tests/__init__.py`
-- [ ] Stwórz `adhd-bot/tests/test_config.py`
+- [x] Stwórz `adhd-bot/main.py` (FastAPI app entry point, endpoint `/health`)
+- [x] Stwórz `adhd-bot/Dockerfile` (python:3.12-slim, gunicorn + uvicorn)
+- [x] Stwórz `adhd-bot/requirements.txt` z pinowanymi wersjami
+- [x] Stwórz `adhd-bot/.env.example`
+- [x] Stwórz `adhd-bot/cloud-run.yaml` (min-instances=1, 512Mi, europe-central2)
+- [x] Stwórz `adhd-bot/bot/__init__.py`
+- [x] Stwórz `adhd-bot/bot/config.py` (dataclass, `__post_init__` fail-fast validation)
+- [x] Stwórz `adhd-bot/bot/handlers/__init__.py`
+- [x] Stwórz `adhd-bot/bot/models/__init__.py`
+- [x] Stwórz `adhd-bot/bot/services/__init__.py`
+- [x] Stwórz `adhd-bot/tests/__init__.py`
+- [x] Stwórz `adhd-bot/tests/test_config.py`
 - [ ] Skonfiguruj Secret Manager: TELEGRAM_BOT_TOKEN, TELEGRAM_SECRET_TOKEN, STRIPE_API_KEY, STRIPE_WEBHOOK_SECRET, GCP_PROJECT_ID
 - [ ] Utwórz dwie Cloud Tasks kolejki: `reminders`, `nudges`
-- [ ] Test: Config validation rzuca `ValueError` gdy brakuje wymaganego env vara
-- [ ] Test: Config poprawnie ładuje zmienne z environment
-- [ ] Test: `/health` zwraca `{"status": "healthy"}` z kodem 200
+- [x] Test: Config validation rzuca `ValueError` gdy brakuje wymaganego env vara
+- [x] Test: Config poprawnie ładuje zmienne z environment
+- [x] Test: `/health` zwraca `{"status": "healthy"}` z kodem 200
 - [ ] Weryfikacja: `docker build` kończy się sukcesem
 - [ ] Weryfikacja: `gcloud run deploy --min-instances=1` kończy się sukcesem
 - [ ] Weryfikacja: `/health` zwraca 200 na Cloud Run URL
@@ -42,18 +42,18 @@ last_updated: 2026-04-09
 
 ### Unit 2: Telegram Webhook Receiver + Security + Deduplication
 
-- [ ] Stwórz `adhd-bot/bot/webhook.py` (FastAPI router dla `/telegram/webhook`)
-- [ ] Stwórz `adhd-bot/bot/services/deduplication.py` (`is_duplicate` + `mark_processed`)
-- [ ] Stwórz `adhd-bot/bot/services/firestore_client.py` (singleton Firestore client)
-- [ ] Stwórz `adhd-bot/tests/test_webhook_security.py`
-- [ ] Stwórz `adhd-bot/tests/test_deduplication.py`
-- [ ] Zaimplementuj webhook: kolejność (1) token check → (2) timestamp check → (3) dedup → (4) routing
-- [ ] Test: Request bez `X-Telegram-Bot-Api-Secret-Token` → 401
-- [ ] Test: Request z błędnym secret token → 401
-- [ ] Test: Request z poprawnym tokenem → 200
-- [ ] Test: Update z `message.date` starszym niż 120s → 200 (odrzucony cicho)
-- [ ] Test: Duplicate `update_id` → 200, `mark_processed` nie wywoływany drugi raz
-- [ ] Test: Nowy `update_id` → dokument tworzony w `processed_updates`
+- [x] Stwórz `adhd-bot/bot/webhook.py` (FastAPI router dla `/telegram/webhook`)
+- [x] Stwórz `adhd-bot/bot/services/deduplication.py` (`is_duplicate` + `mark_processed`)
+- [x] Stwórz `adhd-bot/bot/services/firestore_client.py` (singleton Firestore client)
+- [x] Stwórz `adhd-bot/tests/test_webhook_security.py`
+- [x] Stwórz `adhd-bot/tests/test_deduplication.py`
+- [x] Zaimplementuj webhook: kolejność (1) token check → (2) timestamp check → (3) dedup → (4) routing
+- [x] Test: Request bez `X-Telegram-Bot-Api-Secret-Token` → 401
+- [x] Test: Request z błędnym secret token → 401
+- [x] Test: Request z poprawnym tokenem → 200
+- [x] Test: Update z `message.date` starszym niż 120s → 200 (odrzucony cicho)
+- [x] Test: Duplicate `update_id` → 200, `mark_processed` nie wywoływany drugi raz
+- [x] Test: Nowy `update_id` → dokument tworzony w `processed_updates`
 - [ ] Weryfikacja: Telegram `/setWebhook` z `secret_token` zwraca success
 - [ ] Weryfikacja: Testowy update od Telegram dociera i jest procesowany
 
@@ -61,18 +61,18 @@ last_updated: 2026-04-09
 
 ### Unit 3: Firestore Data Layer + Task State Machine
 
-- [ ] Stwórz `adhd-bot/bot/models/user.py` (User dataclass + `get_or_create` + `is_subscription_active`)
-- [ ] Stwórz `adhd-bot/bot/models/task.py` (Task dataclass + `TaskState` enum + `transition` + `InvalidStateTransitionError`)
-- [ ] Stwórz `adhd-bot/tests/test_user_model.py`
-- [ ] Stwórz `adhd-bot/tests/test_task_state_machine.py`
-- [ ] Test: `task.transition(PENDING_CONFIRMATION → SCHEDULED)` → sukces
-- [ ] Test: `task.transition(SCHEDULED → COMPLETED)` → rzuca `InvalidStateTransitionError`
-- [ ] Test: `task.transition(REMINDED → COMPLETED)` → `expires_at = now() + 30d`, `completed_at` ustawiony
-- [ ] Test: `task.transition(REMINDED → REJECTED)` → `expires_at = now() + 30d`, `rejected_at` ustawiony
-- [ ] Test: `User.get_or_create` tworzy nowego usera z `timezone="Europe/Warsaw"`, `subscription_status="trial"`
-- [ ] Test: `User.get_or_create` zwraca istniejącego usera bez nadpisania pól
-- [ ] Test: `User.is_subscription_active()` → `False` gdy `subscription_status="blocked"`
-- [ ] Test: `User.is_subscription_active()` → `False` gdy `subscription_status="trial"` i `trial_ends_at < now()`
+- [x] Stwórz `adhd-bot/bot/models/user.py` (User dataclass + `get_or_create` + `is_subscription_active`)
+- [x] Stwórz `adhd-bot/bot/models/task.py` (Task dataclass + `TaskState` enum + `transition` + `InvalidStateTransitionError`)
+- [x] Stwórz `adhd-bot/tests/test_user_model.py`
+- [x] Stwórz `adhd-bot/tests/test_task_state_machine.py`
+- [x] Test: `task.transition(PENDING_CONFIRMATION → SCHEDULED)` → sukces
+- [x] Test: `task.transition(SCHEDULED → COMPLETED)` → rzuca `InvalidStateTransitionError`
+- [x] Test: `task.transition(REMINDED → COMPLETED)` → `expires_at = now() + 30d`, `completed_at` ustawiony
+- [x] Test: `task.transition(REMINDED → REJECTED)` → `expires_at = now() + 30d`, `rejected_at` ustawiony
+- [x] Test: `User.get_or_create` tworzy nowego usera z `timezone="Europe/Warsaw"`, `subscription_status="trial"`
+- [x] Test: `User.get_or_create` zwraca istniejącego usera bez nadpisania pól
+- [x] Test: `User.is_subscription_active()` → `False` gdy `subscription_status="blocked"`
+- [x] Test: `User.is_subscription_active()` → `False` gdy `subscription_status="trial"` i `trial_ends_at < now()`
 - [ ] Weryfikacja: State machine testy obejmują 100% macierzy przejść (valid i invalid)
 - [ ] Weryfikacja: Firestore CRUD działa na Firestore emulatorze (lokalnie)
 
@@ -80,17 +80,17 @@ last_updated: 2026-04-09
 
 ### Unit 4: Gemini AI Parser (tekst + głos → structured task)
 
-- [ ] Stwórz `adhd-bot/bot/services/ai_parser.py` (`ParsedTask` dataclass + `parse_message` + `parse_voice_message`)
-- [ ] Stwórz `adhd-bot/tests/test_ai_parser.py`
-- [ ] Zaimplementuj JSON schema output mode (`response_mime_type: application/json`)
-- [ ] Zaimplementuj DST-aware parsowanie polskich wyrażeń czasowych (`zoneinfo`)
-- [ ] Zaimplementuj `confidence < 0.65` → `scheduled_time = None`
-- [ ] Test: "Kupić mleko jutro o 17" → `content="Kupić mleko"`, `scheduled_time=tomorrow 17:00`, `confidence>0.65`
-- [ ] Test: "Kupić mleko" (brak czasu) → `scheduled_time=None`, `confidence<0.65`
-- [ ] Test: "Za 2 godziny zadzwonić do mamy" → `scheduled_time=now+2h`, `confidence>0.65`
-- [ ] Test: "Jutro rano umyć auto" → `is_morning_snooze=True`, `scheduled_time=None`
-- [ ] Test: Gemini timeout/exception → `ParsedTask(content=None, confidence=0.0)` bez propagacji wyjątku
-- [ ] Test: Voice bytes (mock) → wywołuje Gemini z `Part.from_data(mime_type="audio/ogg")`
+- [x] Stwórz `adhd-bot/bot/services/ai_parser.py` (`ParsedTask` dataclass + `parse_message` + `parse_voice_message`)
+- [x] Stwórz `adhd-bot/tests/test_ai_parser.py`
+- [x] Zaimplementuj JSON schema output mode (`response_mime_type: application/json`)
+- [x] Zaimplementuj DST-aware parsowanie polskich wyrażeń czasowych (`zoneinfo`)
+- [x] Zaimplementuj `confidence < 0.65` → `scheduled_time = None`
+- [x] Test: "Kupić mleko jutro o 17" → `content="Kupić mleko"`, `scheduled_time=tomorrow 17:00`, `confidence>0.65`
+- [x] Test: "Kupić mleko" (brak czasu) → `scheduled_time=None`, `confidence<0.65`
+- [x] Test: "Za 2 godziny zadzwonić do mamy" → `scheduled_time=now+2h`, `confidence>0.65`
+- [x] Test: "Jutro rano umyć auto" → `is_morning_snooze=True`, `scheduled_time=None`
+- [x] Test: Gemini timeout/exception → `ParsedTask(content=None, confidence=0.0)` bez propagacji wyjątku
+- [x] Test: Voice bytes (mock) → wywołuje Gemini z `Part.from_data(mime_type="audio/ogg")`
 - [ ] Weryfikacja: Testy z mock Gemini response przechodzą
 - [ ] Weryfikacja: Manual smoke test: 5 polskich wiadomości → poprawne parsowanie
 
@@ -98,21 +98,21 @@ last_updated: 2026-04-09
 
 ### Unit 5: Cloud Tasks Reminder Scheduler
 
-- [ ] Stwórz `adhd-bot/bot/services/scheduler.py` (`schedule_reminder` + `cancel_reminder` + `snooze_reminder`)
-- [ ] Stwórz `adhd-bot/bot/handlers/internal_triggers.py` (szkielet endpointów)
-- [ ] Stwórz `adhd-bot/tests/test_scheduler.py`
-- [ ] Stwórz `adhd-bot/tests/test_internal_triggers.py`
-- [ ] Zaimplementuj deterministic task name: `reminder-{task_id}-{int(fire_at.timestamp())}`
-- [ ] Zaimplementuj `cancel_reminder` ignorujący `NOT_FOUND`
-- [ ] Zaimplementuj OIDC auth dla `/internal/*` endpointów
-- [ ] Zaimplementuj `/internal/trigger-reminder` z idempotency guard (state check)
-- [ ] Zaimplementuj `/internal/trigger-nudge` z state guard
-- [ ] Test: `schedule_reminder` tworzy Cloud Task z poprawnym `schedule_time`
-- [ ] Test: `cancel_reminder(None)` → return bez błędu
-- [ ] Test: `cancel_reminder` z `NOT_FOUND` → brak wyjątku
-- [ ] Test: `snooze_reminder` atomicznie aktualizuje Firestore + tworzy nowy Cloud Task
-- [ ] Test: `/internal/trigger-reminder` z `task.state = REMINDED` → 200, brak wysyłki (idempotent)
-- [ ] Test: `/internal/trigger-nudge` z `task.state = SNOOZED` → 200, brak nudge
+- [x] Stwórz `adhd-bot/bot/services/scheduler.py` (`schedule_reminder` + `cancel_reminder` + `snooze_reminder`)
+- [x] Stwórz `adhd-bot/bot/handlers/internal_triggers.py` (szkielet endpointów)
+- [x] Stwórz `adhd-bot/tests/test_scheduler.py`
+- [x] Stwórz `adhd-bot/tests/test_internal_triggers.py`
+- [x] Zaimplementuj deterministic task name: `reminder-{task_id}-{int(fire_at.timestamp())}`
+- [x] Zaimplementuj `cancel_reminder` ignorujący `NOT_FOUND`
+- [x] Zaimplementuj OIDC auth dla `/internal/*` endpointów
+- [x] Zaimplementuj `/internal/trigger-reminder` z idempotency guard (state check)
+- [x] Zaimplementuj `/internal/trigger-nudge` z state guard
+- [x] Test: `schedule_reminder` tworzy Cloud Task z poprawnym `schedule_time`
+- [x] Test: `cancel_reminder(None)` → return bez błędu
+- [x] Test: `cancel_reminder` z `NOT_FOUND` → brak wyjątku
+- [x] Test: `snooze_reminder` atomicznie aktualizuje Firestore + tworzy nowy Cloud Task
+- [x] Test: `/internal/trigger-reminder` z `task.state = REMINDED` → 200, brak wysyłki (idempotent)
+- [x] Test: `/internal/trigger-nudge` z `task.state = SNOOZED` → 200, brak nudge
 - [ ] Weryfikacja: Cloud Task odpala w ciągu ±10s od `scheduled_time` (test z delay=30s)
 - [ ] Weryfikacja: Snooze: stary Cloud Task usunięty (brak duplikatów w GCP Console)
 
@@ -120,17 +120,17 @@ last_updated: 2026-04-09
 
 ### Unit 6: Onboarding Flow (/start, /timezone, /morning)
 
-- [ ] Stwórz `adhd-bot/bot/handlers/command_handlers.py` (`/start`, `/timezone`, `/morning`)
-- [ ] Stwórz `adhd-bot/tests/test_onboarding.py`
-- [ ] Zaimplementuj conversation state w Firestore (`users/{user_id}.conversation_state` z TTL)
-- [ ] Zaimplementuj walidację IANA timezone przez `zoneinfo.available_timezones()`
-- [ ] Zaimplementuj walidację HH:MM (regex `^\d{2}:\d{2}$`, 00-23:00-59)
-- [ ] Test: `/start` dla nowego usera tworzy dokument z `subscription_status="trial"`, `trial_ends_at=now+7d`
-- [ ] Test: `/start` dla istniejącego usera nie resetuje `subscription_status`
-- [ ] Test: `/timezone Europe/Warsaw` → `user.timezone = "Europe/Warsaw"`, potwierdza
-- [ ] Test: `/timezone Invalid/Zone` → błąd walidacji, brak zapisu
-- [ ] Test: `/morning 08:30` → `user.morning_time = "08:30"`, potwierdza
-- [ ] Test: `/morning 25:00` → błąd walidacji (nieprawidłowa godzina)
+- [x] Stwórz `adhd-bot/bot/handlers/command_handlers.py` (`/start`, `/timezone`, `/morning`)
+- [x] Stwórz `adhd-bot/tests/test_onboarding.py`
+- [x] Zaimplementuj conversation state w Firestore (`users/{user_id}.conversation_state` z TTL)
+- [x] Zaimplementuj walidację IANA timezone przez `zoneinfo.available_timezones()`
+- [x] Zaimplementuj walidację HH:MM (regex `^\d{2}:\d{2}$`, 00-23:00-59)
+- [x] Test: `/start` dla nowego usera tworzy dokument z `subscription_status="trial"`, `trial_ends_at=now+7d`
+- [x] Test: `/start` dla istniejącego usera nie resetuje `subscription_status`
+- [x] Test: `/timezone Europe/Warsaw` → `user.timezone = "Europe/Warsaw"`, potwierdza
+- [x] Test: `/timezone Invalid/Zone` → błąd walidacji, brak zapisu
+- [x] Test: `/morning 08:30` → `user.morning_time = "08:30"`, potwierdza
+- [x] Test: `/morning 25:00` → błąd walidacji (nieprawidłowa godzina)
 - [ ] Weryfikacja: Nowy user po `/start` ma `subscription_status="trial"` i `trial_ends_at` za 7 dni w Firestore
 - [ ] Weryfikacja: `/timezone` i `/morning` poprawnie aktualizują user document
 
@@ -138,21 +138,21 @@ last_updated: 2026-04-09
 
 ### Unit 7: Task Capture Flow (wiadomość → parse → potwierdź → schedule)
 
-- [ ] Stwórz `adhd-bot/bot/handlers/message_handlers.py` (text + voice handlers)
-- [ ] Modyfikuj `adhd-bot/bot/handlers/command_handlers.py` (obsługa conversation states)
-- [ ] Stwórz `adhd-bot/tests/test_task_capture.py`
-- [ ] Zaimplementuj subscription guard (sprawdzany przed każdym handlerem)
-- [ ] Zaimplementuj text message handler (parse → PENDING_CONFIRMATION → confirmation buttons)
-- [ ] Zaimplementuj voice message handler (get_file → parse_voice → identyczny flow)
-- [ ] Zaimplementuj callback `[✓ OK]` → SCHEDULED + Cloud Task
-- [ ] Zaimplementuj callback `[Zmień]` → conversation state `awaiting_time_input`
-- [ ] Test: "Kupić mleko jutro o 17" → task `PENDING_CONFIRMATION`, confirmation z buttons
-- [ ] Test: "Kupić mleko" (brak czasu) → task `PENDING_CONFIRMATION`, `proposed_time=heuristic`
-- [ ] Test: Voice (mock parsed `content="Zadzwonić do mamy"`) → identyczny flow jak text
-- [ ] Test: Voice `content=None` (parse fail) → komunikat "wyślij jako tekst"
+- [x] Stwórz `adhd-bot/bot/handlers/message_handlers.py` (text + voice handlers)
+- [x] Modyfikuj `adhd-bot/bot/handlers/command_handlers.py` (obsługa conversation states)
+- [x] Stwórz `adhd-bot/tests/test_task_capture.py`
+- [x] Zaimplementuj subscription guard (sprawdzany przed każdym handlerem)
+- [x] Zaimplementuj text message handler (parse → PENDING_CONFIRMATION → confirmation buttons)
+- [x] Zaimplementuj voice message handler (get_file → parse_voice → identyczny flow)
+- [x] Zaimplementuj callback `[✓ OK]` → SCHEDULED + Cloud Task
+- [x] Zaimplementuj callback `[Zmień]` → conversation state `awaiting_time_input`
+- [x] Test: "Kupić mleko jutro o 17" → task `PENDING_CONFIRMATION`, confirmation z buttons
+- [x] Test: "Kupić mleko" (brak czasu) → task `PENDING_CONFIRMATION`, `proposed_time=heuristic`
+- [x] Test: Voice (mock parsed `content="Zadzwonić do mamy"`) → identyczny flow jak text
+- [x] Test: Voice `content=None` (parse fail) → komunikat "wyślij jako tekst"
 - [ ] Test: Callback `[✓ OK]` → task `SCHEDULED`, Cloud Task created, buttons usunięte
 - [ ] Test: Callback `[Zmień]` → conversation state `awaiting_time_input`, prompt o nowy czas
-- [ ] Test: Blocked user → komunikat blokady, brak tworzenia tasku
+- [x] Test: Blocked user → komunikat blokady, brak tworzenia tasku
 - [ ] Test [E2E]: Wiadomość "Przypomnij o kawie za 2 minuty" → po ~2 min otrzymać reminder
 - [ ] Weryfikacja: Pełny flow od wiadomości do scheduled Cloud Task działa end-to-end w staging
 - [ ] Weryfikacja: Task w stanie `SCHEDULED` z poprawnym `scheduled_time` widoczny w Firestore
@@ -161,21 +161,21 @@ last_updated: 2026-04-09
 
 ### Unit 8: Reminder Delivery + Inline Button Callbacks (snooze/done/reject)
 
-- [ ] Stwórz `adhd-bot/bot/handlers/callback_handlers.py` (kompletny)
-- [ ] Modyfikuj `adhd-bot/bot/handlers/internal_triggers.py` (format reminder message z buttons)
-- [ ] Stwórz `adhd-bot/tests/test_reminder_callbacks.py`
-- [ ] Zaimplementuj callback data encoding: `snooze:30m:{task_id}`, `snooze:2h:{task_id}`, `snooze:morning:{task_id}`, `done:{task_id}`, `reject:{task_id}`
-- [ ] Zaimplementuj `answerCallbackQuery` jako pierwsze wywołanie w każdym callback
-- [ ] Zaimplementuj R9 flow: snooze morning gdy `user.morning_time is None`
-- [ ] Zaimplementuj fallback: edit message fail → wyślij nową wiadomość
-- [ ] Test: Snooze `+30min` → `new_fire_at = now+30m`, stary Cloud Task cancelled, nowy created
-- [ ] Test: Snooze `+2h` → `new_fire_at = now+2h`
-- [ ] Test: Snooze `morning` gdy `morning_time="08:30"` → `new_fire_at = tomorrow 08:30`
-- [ ] Test: Snooze `morning` gdy `morning_time=None` → R9 flow triggered
-- [ ] Test: Done → `task.state=COMPLETED`, `expires_at` ustawiony, nudge cancelled
-- [ ] Test: Reject → `task.state=REJECTED`, `expires_at` ustawiony
-- [ ] Test: Callback na task `COMPLETED` → `answerCallbackQuery`, brak błędu (idempotent)
-- [ ] Test: Edit message fail → wyślij nową wiadomość (degraded mode)
+- [x] Stwórz `adhd-bot/bot/handlers/callback_handlers.py` (kompletny)
+- [x] Modyfikuj `adhd-bot/bot/handlers/internal_triggers.py` (format reminder message z buttons)
+- [x] Stwórz `adhd-bot/tests/test_reminder_callbacks.py`
+- [x] Zaimplementuj callback data encoding: `snooze:30m:{task_id}`, `snooze:2h:{task_id}`, `snooze:morning:{task_id}`, `done:{task_id}`, `reject:{task_id}`
+- [x] Zaimplementuj `answerCallbackQuery` jako pierwsze wywołanie w każdym callback
+- [x] Zaimplementuj R9 flow: snooze morning gdy `user.morning_time is None`
+- [x] Zaimplementuj fallback: edit message fail → wyślij nową wiadomość
+- [x] Test: Snooze `+30min` → `new_fire_at = now+30m`, stary Cloud Task cancelled, nowy created
+- [x] Test: Snooze `+2h` → `new_fire_at = now+2h`
+- [x] Test: Snooze `morning` gdy `morning_time="08:30"` → `new_fire_at = tomorrow 08:30`
+- [x] Test: Snooze `morning` gdy `morning_time=None` → R9 flow triggered
+- [x] Test: Done → `task.state=COMPLETED`, `expires_at` ustawiony, nudge cancelled
+- [x] Test: Reject → `task.state=REJECTED`, `expires_at` ustawiony
+- [x] Test: Callback na task `COMPLETED` → `answerCallbackQuery`, brak błędu (idempotent)
+- [x] Test: Edit message fail → wyślij nową wiadomość (degraded mode)
 - [ ] Test [E2E]: Kliknij `[+30 min]` na reminderze → wiadomość edytowana, nowy reminder za 30 min
 - [ ] Weryfikacja: Wszystkie 5 callback flows działają end-to-end w staging
 - [ ] Weryfikacja: Snooze: stary Cloud Task usunięty (brak duplikatów w GCP Console)
