@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
+from google.cloud.exceptions import GoogleCloudError
+
 from bot.models.checklist import ChecklistItem, ChecklistSession, ChecklistTemplate
 
 logger = logging.getLogger(__name__)
@@ -95,7 +97,7 @@ async def create_session(
         session.cloud_task_name_morning = morning_ct_name
 
         await session.save(db)
-    except Exception as exc:  # noqa: BLE001
+    except (GoogleCloudError, ValueError) as exc:
         logger.error("Failed to schedule checklist triggers for session %s: %s", session.session_id, exc)
 
     return session

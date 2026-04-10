@@ -201,13 +201,13 @@ class TestDeleteTemplate:
 
     @pytest.mark.asyncio
     async def test_delete_template_removes_from_firestore(self):
-        """Test: [Usun] template -> deleted from Firestore."""
+        """Test: [Usun] template by owner -> deleted from Firestore."""
         db = MagicMock()
 
-        # Setup doc that exists
+        # Setup doc that exists, owned by user 12345
         doc = MagicMock()
         doc.exists = True
-        doc.to_dict.return_value = {"name": "Silownia", "template_id": "t1"}
+        doc.to_dict.return_value = {"name": "Silownia", "template_id": "t1", "user_id": 12345}
 
         doc_ref = AsyncMock()
         doc_ref.get = AsyncMock(return_value=doc)
@@ -217,7 +217,7 @@ class TestDeleteTemplate:
         collection_mock.document.return_value = doc_ref
         db.collection.return_value = collection_mock
 
-        callback = _make_callback_query("checklist_delete:t1")
+        callback = _make_callback_query("checklist_delete:t1", user_id=12345)
 
         # Mock both _send_message AND httpx.AsyncClient (used for answerCallbackQuery)
         mock_httpx_client = AsyncMock()
@@ -236,6 +236,46 @@ class TestDeleteTemplate:
         assert mock_send.called
         sent_text = mock_send.call_args[0][1]
         assert "usuniety" in sent_text
+
+    @pytest.mark.asyncio
+    async def test_delete_template_by_non_owner_refused(self):
+        """Test: [Usun] template by non-owner -> access denied (P2-1)."""
+        db = MagicMock()
+
+        # Template owned by user 99999
+        doc = MagicMock()
+        doc.exists = True
+        doc.to_dict.return_value = {"name": "Silownia", "template_id": "t1", "user_id": 99999}
+
+        doc_ref = AsyncMock()
+        doc_ref.get = AsyncMock(return_value=doc)
+        doc_ref.delete = AsyncMock()
+
+        collection_mock = MagicMock()
+        collection_mock.document.return_value = doc_ref
+        db.collection.return_value = collection_mock
+
+        # Callback from user 12345 (not the owner)
+        callback = _make_callback_query("checklist_delete:t1", user_id=12345)
+
+        mock_httpx_client = AsyncMock()
+        mock_httpx_client.post = AsyncMock()
+
+        with (
+            patch("bot.handlers.checklist_command_handlers._send_message", new_callable=AsyncMock) as mock_send,
+            patch("httpx.AsyncClient") as mock_httpx_cls,
+        ):
+            mock_httpx_cls.return_value.__aenter__ = AsyncMock(return_value=mock_httpx_client)
+            mock_httpx_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            await handle_checklist_delete_callback(callback, db)
+
+        # Should NOT delete
+        doc_ref.delete.assert_not_called()
+        # Should send access denied message
+        assert mock_send.called
+        sent_text = mock_send.call_args[0][1]
+        assert "Brak uprawnien" in sent_text
 
 
 class TestEveningCommand:

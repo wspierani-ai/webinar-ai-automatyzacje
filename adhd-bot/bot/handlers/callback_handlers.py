@@ -335,6 +335,8 @@ async def handle_reject_callback(
 async def dispatch_callback(callback_query: dict, db) -> None:
     """Route callback_query to appropriate handler based on callback_data."""
     from bot.handlers.checklist_callbacks import (
+        handle_checklist_attach_callback,
+        handle_checklist_create_callback,
         handle_checklist_item_callback,
         handle_checklist_snooze_callback,
     )
@@ -364,6 +366,10 @@ async def dispatch_callback(callback_query: dict, db) -> None:
         await handle_checklist_snooze_callback(callback_query, db)
     elif action == "checklist_delete":
         await handle_checklist_delete_callback(callback_query, db)
+    elif action == "checklist_attach":
+        await handle_checklist_attach_callback(callback_query, db)
+    elif action == "checklist_create":
+        await handle_checklist_create_callback(callback_query, db)
     elif action == "gdpr_confirm_delete":
         await handle_gdpr_confirm_callback(callback_query, db)
     elif action == "gdpr_cancel_delete":

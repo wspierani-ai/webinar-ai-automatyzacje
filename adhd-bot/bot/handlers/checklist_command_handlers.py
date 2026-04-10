@@ -182,6 +182,7 @@ async def handle_checklist_delete_callback(callback_query: dict, db) -> None:
     """Handle callback for deleting a checklist template."""
     callback_data = callback_query.get("data", "")
     callback_query_id = callback_query["id"]
+    user_id = callback_query["from"]["id"]
     chat_id = callback_query["message"]["chat"]["id"]
 
     # Answer callback immediately
@@ -201,15 +202,21 @@ async def handle_checklist_delete_callback(callback_query: dict, db) -> None:
 
     template_id = parts[1]
 
-    # Delete template
+    # Load template
     doc_ref = db.collection("checklist_templates").document(template_id)
     doc = await doc_ref.get()
     if not doc.exists:
         await _send_message(chat_id, "Szablon nie istnieje lub zostal juz usuniety.")
         return
 
-    await doc_ref.delete()
     template_data = doc.to_dict()
+
+    # Verify ownership (P2-1): only the template owner can delete it
+    if template_data.get("user_id") != user_id:
+        await _send_message(chat_id, "Brak uprawnien do usuniecia tego szablonu.")
+        return
+
+    await doc_ref.delete()
     template_name = template_data.get("name", "szablon")
 
     await _send_message(chat_id, f"Szablon '<b>{template_name}</b>' zostal usuniety.")

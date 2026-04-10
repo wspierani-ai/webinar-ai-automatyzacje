@@ -41,6 +41,8 @@ def _make_user_db(
     user_id: int = 12345,
     stripe_subscription_id: str | None = None,
     google_connected: bool = False,
+    active_tasks: list | None = None,
+    checklist_sessions: list | None = None,
 ):
     """Create mock db with user document and per-user collections."""
     db = MagicMock()
@@ -63,21 +65,51 @@ def _make_user_db(
     user_doc_ref.set = AsyncMock()
     user_doc_ref.delete = AsyncMock()
 
-    # Per-collection docs (tasks, token_usage, etc.)
+    # Per-collection docs (tasks, checklist_templates, etc.)
+    # NOTE: token_usage is now handled via subcollection enumeration, not flat query.
+    # NOTE: processed_updates removed — no user_id field (P2-3).
+    task_docs = active_tasks if active_tasks is not None else [
+        _make_doc_mock({"telegram_user_id": user_id, "task_id": "t1", "state": "SCHEDULED", "cloud_task_name": None, "nudge_task_name": None}),
+    ]
+    session_docs = checklist_sessions if checklist_sessions is not None else []
+
     collection_docs = {
-        "tasks": [_make_doc_mock({"telegram_user_id": user_id, "task_id": "t1"})],
-        "token_usage": [_make_doc_mock({"user_id": user_id})],
+        "tasks": task_docs,
         "checklist_templates": [],
-        "checklist_sessions": [],
-        "processed_updates": [],
+        "checklist_sessions": session_docs,
         "users": [],
     }
+
+    # token_usage subcollection mocking: token_usage/{date}/users/{user_id}
+    token_date_doc = MagicMock()
+    token_date_doc.id = "2026-04-09"
+    token_user_doc = MagicMock()
+    token_user_doc.exists = True
+    token_user_doc_ref = AsyncMock()
+    token_user_doc_ref.get = AsyncMock(return_value=token_user_doc)
+    token_user_doc_ref.delete = AsyncMock()
 
     def collection_factory(name):
         col = MagicMock()
 
         if name == "users":
             col.document.return_value = user_doc_ref
+            return col
+
+        if name == "token_usage":
+            # Top-level token_usage collection: return date docs for enumeration
+            col.get = AsyncMock(return_value=[token_date_doc])
+            # Also support .document(date).collection("users").document(uid)
+            users_subcol = MagicMock()
+            users_subcol.document.return_value = token_user_doc_ref
+            date_doc_ref = MagicMock()
+            date_doc_ref.collection.return_value = users_subcol
+            col.document.return_value = date_doc_ref
+            # Also support where() queries (for _cancel_active_cloud_tasks)
+            query_mock = MagicMock()
+            query_mock.where.return_value = query_mock
+            query_mock.get = AsyncMock(return_value=[])
+            col.where.return_value = query_mock
             return col
 
         # For other collections, return query results
@@ -91,7 +123,8 @@ def _make_user_db(
         return col
 
     db.collection = MagicMock(side_effect=collection_factory)
-    return db, user_doc_ref
+    db.transaction = MagicMock(return_value=MagicMock())
+    return db, user_doc_ref, token_user_doc_ref
 
 
 def _make_doc_mock(data: dict):
@@ -109,7 +142,7 @@ class TestDeleteMyDataCommand:
     @pytest.mark.asyncio
     async def test_sends_warning_without_deleting(self):
         """Test: /delete_my_data without confirmation -> no deletion."""
-        db, doc_ref = _make_user_db()
+        db, doc_ref, _ = _make_user_db()
 
         with patch("bot.handlers.command_handlers._send_message", new_callable=AsyncMock) as mock_send:
             await handle_delete_my_data(_make_message("/delete_my_data"), db)
@@ -134,24 +167,30 @@ class TestCascadeDeleteUserData:
     @pytest.mark.asyncio
     async def test_deletes_all_collections(self):
         """Test: /delete_my_data with confirmation -> all user collections deleted from Firestore."""
-        db, user_doc_ref = _make_user_db()
+        db, user_doc_ref, token_doc_ref = _make_user_db()
 
-        summary = await cascade_delete_user_data(db, 12345)
+        with patch("bot.handlers.gdpr_handler.cancel_reminder", new_callable=AsyncMock):
+            summary = await cascade_delete_user_data(db, 12345)
 
         # User document should be deleted
         user_doc_ref.delete.assert_called()
         assert summary["user_deleted"] is True
 
-        # tasks and token_usage should have docs deleted
+        # tasks should have docs deleted
         assert summary["collections_deleted"]["tasks"] == 1
+        # token_usage subcollection docs should be deleted
         assert summary["collections_deleted"]["token_usage"] == 1
+        token_doc_ref.delete.assert_called()
 
     @pytest.mark.asyncio
     async def test_cancels_stripe_subscription_if_exists(self):
         """Test: /delete_my_data cancels Stripe subscription if exists."""
-        db, _ = _make_user_db(stripe_subscription_id="sub_abc123")
+        db, _, _ = _make_user_db(stripe_subscription_id="sub_abc123")
 
-        with patch("stripe.Subscription.cancel") as mock_cancel:
+        with (
+            patch("stripe.Subscription.cancel") as mock_cancel,
+            patch("bot.handlers.gdpr_handler.cancel_reminder", new_callable=AsyncMock),
+        ):
             summary = await cascade_delete_user_data(db, 12345)
 
         assert summary["stripe_cancelled"] is True
@@ -160,17 +199,21 @@ class TestCascadeDeleteUserData:
     @pytest.mark.asyncio
     async def test_no_stripe_cancel_when_no_subscription(self):
         """Test: /delete_my_data without Stripe subscription -> no cancel."""
-        db, _ = _make_user_db(stripe_subscription_id=None)
+        db, _, _ = _make_user_db(stripe_subscription_id=None)
 
-        summary = await cascade_delete_user_data(db, 12345)
+        with patch("bot.handlers.gdpr_handler.cancel_reminder", new_callable=AsyncMock):
+            summary = await cascade_delete_user_data(db, 12345)
         assert summary["stripe_cancelled"] is False
 
     @pytest.mark.asyncio
     async def test_revokes_google_token_if_connected(self):
         """Test: /delete_my_data revokes Google token if connected."""
-        db, _ = _make_user_db(google_connected=True)
+        db, _, _ = _make_user_db(google_connected=True)
 
-        with patch("bot.services.google_auth.disconnect_google", new_callable=AsyncMock) as mock_disconnect:
+        with (
+            patch("bot.services.google_auth.disconnect_google", new_callable=AsyncMock) as mock_disconnect,
+            patch("bot.handlers.gdpr_handler.cancel_reminder", new_callable=AsyncMock),
+        ):
             summary = await cascade_delete_user_data(db, 12345)
 
         assert summary["google_revoked"] is True
@@ -179,9 +222,10 @@ class TestCascadeDeleteUserData:
     @pytest.mark.asyncio
     async def test_no_google_revoke_when_not_connected(self):
         """Test: /delete_my_data without Google connection -> no revoke."""
-        db, _ = _make_user_db(google_connected=False)
+        db, _, _ = _make_user_db(google_connected=False)
 
-        summary = await cascade_delete_user_data(db, 12345)
+        with patch("bot.handlers.gdpr_handler.cancel_reminder", new_callable=AsyncMock):
+            summary = await cascade_delete_user_data(db, 12345)
         assert summary["google_revoked"] is False
 
 
@@ -190,7 +234,7 @@ class TestGdprConfirmCallback:
 
     @pytest.mark.asyncio
     async def test_confirm_triggers_deletion(self):
-        db, _ = _make_user_db()
+        db, _, _ = _make_user_db()
         callback = _make_callback_query("gdpr_confirm_delete")
 
         with (
@@ -207,7 +251,7 @@ class TestGdprConfirmCallback:
 
     @pytest.mark.asyncio
     async def test_cancel_does_not_delete(self):
-        db, _ = _make_user_db()
+        db, _, _ = _make_user_db()
         callback = _make_callback_query("gdpr_cancel_delete")
 
         with (
@@ -219,6 +263,40 @@ class TestGdprConfirmCallback:
         assert mock_send.called
         sent_text = mock_send.call_args[0][1]
         assert "Anulowano" in sent_text
+
+
+class TestGdprCloudTasksCancellation:
+    """Test GDPR cascade cancels active Cloud Tasks."""
+
+    @pytest.mark.asyncio
+    async def test_gdpr_cancels_active_cloud_tasks(self):
+        """Test: GDPR delete cancels Cloud Tasks for active tasks."""
+        active_task = _make_doc_mock({
+            "telegram_user_id": 12345,
+            "task_id": "t1",
+            "state": "SCHEDULED",
+            "cloud_task_name": "reminder-t1-12345",
+            "nudge_task_name": None,
+        })
+        db, _, _ = _make_user_db(active_tasks=[active_task])
+
+        with patch("bot.handlers.gdpr_handler.cancel_reminder", new_callable=AsyncMock) as mock_cancel:
+            summary = await cascade_delete_user_data(db, 12345)
+
+        # Should have cancelled the cloud task
+        assert summary["cloud_tasks_cancelled"] >= 1
+        mock_cancel.assert_any_call("reminder-t1-12345")
+
+    @pytest.mark.asyncio
+    async def test_gdpr_cleans_token_usage_subcollections(self):
+        """Test: GDPR delete removes token_usage subcollection documents."""
+        db, _, token_doc_ref = _make_user_db()
+
+        with patch("bot.handlers.gdpr_handler.cancel_reminder", new_callable=AsyncMock):
+            summary = await cascade_delete_user_data(db, 12345)
+
+        assert summary["collections_deleted"]["token_usage"] == 1
+        token_doc_ref.delete.assert_called()
 
 
 class TestPrivacyEndpoint:

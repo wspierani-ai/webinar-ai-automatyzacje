@@ -6,17 +6,24 @@ import logging
 import os
 from typing import Any, Optional
 
+import httpx
+from google.cloud.exceptions import GoogleCloudError
+
+from bot.services.scheduler import cancel_reminder
+
 logger = logging.getLogger(__name__)
 
 TELEGRAM_BASE_URL = "https://api.telegram.org"
 
-# All Firestore collections that store per-user data
+# All Firestore collections that store per-user data (flat, with user_id field).
+# NOTE: processed_updates is intentionally excluded — documents are keyed by
+# Telegram update_id, have no user_id field, and auto-expire via 24h TTL.
+# NOTE: token_usage uses subcollection structure (token_usage/{date}/users/{uid})
+# and is handled separately in _delete_token_usage_docs.
 USER_COLLECTIONS = [
     "tasks",
-    "token_usage",
     "checklist_templates",
     "checklist_sessions",
-    "processed_updates",
 ]
 
 
@@ -54,10 +61,39 @@ async def _delete_collection_docs(db, collection_name: str, user_id: int) -> int
         for doc in docs:
             await doc.reference.delete()
             count += 1
-    except Exception as exc:
+    except GoogleCloudError as exc:
         logger.error(
             "Failed to delete docs from %s for user %s: %s",
             collection_name, user_id, exc,
+        )
+
+    return count
+
+
+async def _delete_token_usage_docs(db, user_id: int) -> int:
+    """Delete token_usage subcollection docs for user.
+
+    Structure: token_usage/{YYYY-MM-DD}/users/{user_id}
+    Enumerate all date documents, then delete the user's doc under each.
+    """
+    count = 0
+    try:
+        date_docs = await db.collection("token_usage").get()
+        for date_doc in date_docs:
+            user_doc_ref = (
+                db.collection("token_usage")
+                .document(date_doc.id)
+                .collection("users")
+                .document(str(user_id))
+            )
+            user_doc = await user_doc_ref.get()
+            if user_doc.exists:
+                await user_doc_ref.delete()
+                count += 1
+    except GoogleCloudError as exc:
+        logger.error(
+            "Failed to delete token_usage docs for user %s: %s",
+            user_id, exc,
         )
 
     return count
@@ -76,7 +112,7 @@ async def _cancel_user_stripe_subscription(user_data: dict) -> bool:
         stripe.Subscription.cancel(subscription_id)
         logger.info("Cancelled Stripe subscription %s", subscription_id)
         return True
-    except Exception as exc:
+    except stripe.error.StripeError as exc:
         logger.error("Failed to cancel Stripe subscription %s: %s", subscription_id, exc)
         return False
 
@@ -92,9 +128,54 @@ async def _revoke_google_token(db, user_id: int, user_data: dict) -> bool:
         await disconnect_google(db, user_id)
         logger.info("Revoked Google token for user %s", user_id)
         return True
-    except Exception as exc:
+    except (httpx.HTTPError, ValueError, GoogleCloudError) as exc:
         logger.error("Failed to revoke Google token for user %s: %s", user_id, exc)
         return False
+
+
+async def _cancel_active_cloud_tasks(db, user_id: int) -> int:
+    """Cancel Cloud Tasks for user's active tasks and checklist sessions.
+
+    Looks for tasks in SCHEDULED/REMINDED/SNOOZED/NUDGED states and
+    checklist sessions with pending cloud tasks. Returns count cancelled.
+    """
+    cancelled = 0
+
+    # Cancel Cloud Tasks for active task reminders/nudges
+    active_states = ["SCHEDULED", "REMINDED", "SNOOZED", "NUDGED"]
+    try:
+        for state_val in active_states:
+            query = (
+                db.collection("tasks")
+                .where("telegram_user_id", "==", user_id)
+                .where("state", "==", state_val)
+            )
+            docs = await query.get()
+            for doc in docs:
+                data = doc.to_dict()
+                for ct_field in ("cloud_task_name", "nudge_task_name"):
+                    ct_name = data.get(ct_field)
+                    if ct_name:
+                        await cancel_reminder(ct_name)
+                        cancelled += 1
+    except GoogleCloudError as exc:
+        logger.error("Failed to cancel task Cloud Tasks for user %s: %s", user_id, exc)
+
+    # Cancel Cloud Tasks for checklist sessions
+    try:
+        query = db.collection("checklist_sessions").where("user_id", "==", user_id)
+        docs = await query.get()
+        for doc in docs:
+            data = doc.to_dict()
+            for ct_field in ("cloud_task_name_evening", "cloud_task_name_morning"):
+                ct_name = data.get(ct_field)
+                if ct_name:
+                    await cancel_reminder(ct_name)
+                    cancelled += 1
+    except GoogleCloudError as exc:
+        logger.error("Failed to cancel checklist Cloud Tasks for user %s: %s", user_id, exc)
+
+    return cancelled
 
 
 async def cascade_delete_user_data(db, user_id: int) -> dict[str, Any]:
@@ -102,16 +183,28 @@ async def cascade_delete_user_data(db, user_id: int) -> dict[str, Any]:
 
     Returns a summary dict of what was deleted.
     """
-    summary: dict[str, Any] = {"collections_deleted": {}, "stripe_cancelled": False, "google_revoked": False}
+    summary: dict[str, Any] = {
+        "collections_deleted": {},
+        "stripe_cancelled": False,
+        "google_revoked": False,
+        "cloud_tasks_cancelled": 0,
+    }
 
     # Load user data before deletion
     user_doc = await db.collection("users").document(str(user_id)).get()
     user_data = user_doc.to_dict() if user_doc.exists else {}
 
-    # Delete from all per-user collections
+    # Cancel active Cloud Tasks before deleting documents (P2-2)
+    summary["cloud_tasks_cancelled"] = await _cancel_active_cloud_tasks(db, user_id)
+
+    # Delete from all per-user collections (flat structure)
     for collection_name in USER_COLLECTIONS:
         count = await _delete_collection_docs(db, collection_name, user_id)
         summary["collections_deleted"][collection_name] = count
+
+    # Delete token_usage subcollection docs (P1-1)
+    token_count = await _delete_token_usage_docs(db, user_id)
+    summary["collections_deleted"]["token_usage"] = token_count
 
     # Cancel Stripe subscription
     summary["stripe_cancelled"] = await _cancel_user_stripe_subscription(user_data)
@@ -123,7 +216,7 @@ async def cascade_delete_user_data(db, user_id: int) -> dict[str, Any]:
     try:
         await db.collection("users").document(str(user_id)).delete()
         summary["user_deleted"] = True
-    except Exception as exc:
+    except GoogleCloudError as exc:
         logger.error("Failed to delete user document for %s: %s", user_id, exc)
         summary["user_deleted"] = False
 

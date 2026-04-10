@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from bot.models.checklist import ChecklistItem, ChecklistSession, ChecklistTemplate
 from bot.handlers.checklist_callbacks import (
     _build_checklist_message,
+    handle_checklist_attach_callback,
+    handle_checklist_create_callback,
     handle_checklist_item_callback,
     handle_checklist_snooze_callback,
 )
@@ -61,6 +63,11 @@ def _make_db_with_session(session: ChecklistSession):
     collection_mock = MagicMock()
     collection_mock.document.return_value = doc_ref
     db.collection.return_value = collection_mock
+
+    # Transaction mock: set() stores data, transaction is passed to doc_ref.get()
+    transaction_mock = MagicMock()
+    transaction_mock.set = MagicMock()
+    db.transaction.return_value = transaction_mock
 
     return db, doc_ref
 
@@ -274,11 +281,16 @@ class TestItemCallback:
         ):
             await handle_checklist_item_callback(callback, db)
 
-        # Should save with all items checked and state=completed
+        # Transaction should have set data with toggled item
+        transaction_mock = db.transaction()
+        assert transaction_mock.set.call_count >= 1
+        txn_save = transaction_mock.set.call_args[0][1]
+        assert txn_save["items"][2]["checked"] is True
+
+        # After auto-close, session.save() is called again with state=completed
         assert doc_ref.set.call_count >= 1
         last_save = doc_ref.set.call_args[0][0]
         assert last_save["state"] == "completed"
-        assert all(item["checked"] for item in last_save["items"])
 
         # Should edit message with completion text
         assert mock_edit.called
@@ -302,14 +314,37 @@ class TestItemCallback:
         ):
             await handle_checklist_item_callback(callback, db)
 
-        # Should save with first item checked
-        last_save = doc_ref.set.call_args[0][0]
-        assert last_save["items"][0]["checked"] is True
-        assert last_save["items"][1]["checked"] is False
-        assert last_save["state"] != "completed"
+        # Transaction should have toggled first item to checked
+        transaction_mock = db.transaction()
+        txn_save = transaction_mock.set.call_args[0][1]
+        assert txn_save["items"][0]["checked"] is True
+        assert txn_save["items"][1]["checked"] is False
+        assert txn_save["state"] != "completed"
 
         # Should edit message with updated list and keyboard
         assert mock_edit.called
+
+    @pytest.mark.asyncio
+    async def test_clicking_checked_item_unchecks_it(self):
+        """Test: Clicking a checked item -> uncheck (toggle, P2-4)."""
+        session = _make_session(
+            items=[("Buty", True), ("Recznik", False), ("Bidon", False)],
+            state="evening_sent",
+        )
+        db, doc_ref = _make_db_with_session(session)
+
+        callback = _make_callback_query(f"checklist_item:{session.session_id}:0")
+
+        with (
+            patch("bot.handlers.checklist_callbacks._answer_callback_query", new_callable=AsyncMock),
+            patch("bot.handlers.checklist_callbacks._edit_message_text", new_callable=AsyncMock) as mock_edit,
+        ):
+            await handle_checklist_item_callback(callback, db)
+
+        # Transaction should have toggled first item to unchecked
+        transaction_mock = db.transaction()
+        txn_save = transaction_mock.set.call_args[0][1]
+        assert txn_save["items"][0]["checked"] is False
 
 
 class TestChecklistSnooze:
@@ -360,19 +395,150 @@ class TestBuildChecklistMessage:
         assert "Buty" in text
         assert "Recznik" in text
 
-        # Keyboard should have buttons for unchecked items only
+        # Keyboard should have buttons for ALL items (toggle support, P2-4)
         inline_keyboard = keyboard["inline_keyboard"]
-        # Item buttons (excluding snooze row)
         item_buttons = []
         for row in inline_keyboard:
             for btn in row:
                 if "checklist_item:" in btn.get("callback_data", ""):
                     item_buttons.append(btn)
 
-        assert len(item_buttons) == 2  # Recznik and Bidon
+        assert len(item_buttons) == 3  # All items: Buty (checked), Recznik, Bidon
+
+        # Checked item button should have checkmark prefix
+        checked_btns = [b for b in item_buttons if "\u2705" in b["text"]]
+        assert len(checked_btns) == 1
+        assert "Buty" in checked_btns[0]["text"]
+
         # Snooze button present
         snooze_buttons = [
             btn for row in inline_keyboard for btn in row
             if "checklist_snooze:" in btn.get("callback_data", "")
         ]
         assert len(snooze_buttons) == 1
+
+
+class TestChecklistAttachCallback:
+    """Test checklist_attach callback handler (P1-2)."""
+
+    @pytest.mark.asyncio
+    async def test_attach_creates_session_from_template(self):
+        """Test: checklist_attach callback -> creates session linked to task."""
+        from bot.models.task import Task, TaskState
+        from bot.models.user import User
+
+        db = MagicMock()
+
+        task = Task(
+            task_id="task-1",
+            telegram_user_id=12345,
+            content="Silownia jutro",
+            state=TaskState.PENDING_CONFIRMATION,
+            proposed_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+        )
+        task_doc = MagicMock()
+        task_doc.exists = True
+        task_doc.to_dict.return_value = task.to_firestore_dict()
+
+        template = ChecklistTemplate(
+            template_id="tmpl-1",
+            user_id=12345,
+            name="Silownia",
+            items=["Buty", "Recznik"],
+        )
+        template_doc = MagicMock()
+        template_doc.exists = True
+        template_doc.to_dict.return_value = template.to_firestore_dict()
+
+        user = User(telegram_user_id=12345)
+        user_doc = MagicMock()
+        user_doc.exists = True
+        user_doc.to_dict.return_value = user.to_firestore_dict()
+
+        doc_ref = AsyncMock()
+        doc_ref.set = AsyncMock()
+
+        def doc_get_side_effect(*args, **kwargs):
+            return doc_ref
+
+        def collection_factory(name):
+            col = MagicMock()
+            if name == "tasks":
+                task_doc_ref = AsyncMock()
+                task_doc_ref.get = AsyncMock(return_value=task_doc)
+                task_doc_ref.set = AsyncMock()
+                col.document.return_value = task_doc_ref
+            elif name == "checklist_templates":
+                tmpl_doc_ref = AsyncMock()
+                tmpl_doc_ref.get = AsyncMock(return_value=template_doc)
+                col.document.return_value = tmpl_doc_ref
+            elif name == "users":
+                user_doc_ref = AsyncMock()
+                user_doc_ref.get = AsyncMock(return_value=user_doc)
+                user_doc_ref.set = AsyncMock()
+                col.document.return_value = user_doc_ref
+            else:
+                col.document.return_value = doc_ref
+            return col
+
+        db.collection = MagicMock(side_effect=collection_factory)
+
+        callback = _make_callback_query("checklist_attach:task-1:tmpl-1")
+
+        with (
+            patch("bot.handlers.checklist_callbacks._answer_callback_query", new_callable=AsyncMock),
+            patch("bot.handlers.checklist_callbacks._edit_message_text", new_callable=AsyncMock) as mock_edit,
+            patch("bot.services.scheduler.schedule_checklist_trigger", new_callable=AsyncMock, return_value="ct-name"),
+            patch("bot.services.scheduler.schedule_reminder", new_callable=AsyncMock, return_value="ct-reminder"),
+        ):
+            await handle_checklist_attach_callback(callback, db)
+
+        assert mock_edit.called
+        edit_text = mock_edit.call_args[0][2]
+        assert "dolaczona" in edit_text or "Silownia" in edit_text
+
+
+class TestChecklistCreateCallback:
+    """Test checklist_create callback handler (P1-2)."""
+
+    @pytest.mark.asyncio
+    async def test_create_prompts_user(self):
+        """Test: checklist_create callback -> prompts user to create checklist."""
+        from bot.models.task import Task, TaskState
+
+        db = MagicMock()
+
+        task = Task(
+            task_id="task-2",
+            telegram_user_id=12345,
+            content="Basen jutro",
+            state=TaskState.PENDING_CONFIRMATION,
+            proposed_time=datetime.now(tz=timezone.utc) + timedelta(days=1),
+        )
+        task_doc = MagicMock()
+        task_doc.exists = True
+        task_doc.to_dict.return_value = task.to_firestore_dict()
+
+        task_doc_ref = AsyncMock()
+        task_doc_ref.get = AsyncMock(return_value=task_doc)
+        task_doc_ref.set = AsyncMock()
+
+        def collection_factory(name):
+            col = MagicMock()
+            col.document.return_value = task_doc_ref
+            return col
+
+        db.collection = MagicMock(side_effect=collection_factory)
+
+        callback = _make_callback_query("checklist_create:task-2")
+
+        with (
+            patch("bot.handlers.checklist_callbacks._answer_callback_query", new_callable=AsyncMock),
+            patch("bot.handlers.checklist_callbacks._edit_message_text", new_callable=AsyncMock) as mock_edit,
+            patch("bot.services.scheduler.schedule_reminder", new_callable=AsyncMock, return_value="ct-reminder"),
+        ):
+            await handle_checklist_create_callback(callback, db)
+
+        assert mock_edit.called
+        edit_text = mock_edit.call_args[0][2]
+        assert "/new_checklist" in edit_text
