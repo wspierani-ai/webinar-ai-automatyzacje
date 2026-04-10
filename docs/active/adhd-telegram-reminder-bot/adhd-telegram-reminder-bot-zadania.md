@@ -284,22 +284,35 @@ last_updated: 2026-04-09
 
 ---
 
+## Do poprawy po review fazy 3
+
+- [x] 🟠 [important] **bot/handlers/stripe_webhook_handler.py:89,105-108** — Mark-before-handle: `mark_event_processed` wywołane PRZED handlerem; przy exception handlera zwracany jest 500, Stripe ponawia, dedup zwraca duplicate → event trwale pominięty. Zamień kolejność: uruchom handler → jeśli sukces → mark → 200; jeśli wyjątek → return 500 bez mark — naprawione ✅ (re-run cykl 1 2026-04-09)
+- [x] 🟠 [important] **bot/services/stripe_service.py:137-217** — Brak Telegram notification w `handle_invoice_payment_failed` (wymagane: "Płatność nie powiodła się 💳 Masz 3 dni na aktualizację karty: /billing") i `handle_subscription_deleted` (wymagane: "Subskrypcja anulowana. Wznów przez /subscribe.") — user nie jest informowany przez bota o problemach z płatnością — naprawione ✅ (re-run cykl 1 2026-04-09)
+- [x] 🟠 [important] **bot/handlers/payment_command_handlers.py:98-153** — `/billing` nie implementuje Stripe Billing Portal (plan: `stripe.billing_portal.Session.create(customer=customer_id) → wyślij URL`); aktualna implementacja pokazuje tylko status tekstowy bez możliwości zarządzania kartą; zaimplementuj portal lub udokumentuj świadomą zmianę w kontekście — naprawione ✅ (re-run cykl 1 2026-04-09)
+- [ ] 🟡 [nit] **bot/handlers/stripe_webhook_handler.py:60** — `except Exception` w `_verify_stripe_signature` — zawęź do `except (stripe.error.SignatureVerificationError, ValueError):` (wzorzec z naprawy Fazy 2)
+- [ ] 🟡 [nit] **bot/services/stripe_service.py:15-19** + **stripe_webhook_handler.py:57** — `STRIPE_API_KEY` odczytywany z `os.environ` przy każdym wywołaniu zamiast z Config singleton; dodaj walidację że klucz nie jest pusty
+- [ ] 🟡 [nit] **bot/handlers/stripe_webhook_handler.py:105** — `except Exception` w routerze eventów — zawęź do konkretnych typów (google.cloud.exceptions.DeadlineExceeded, etc.)
+- [ ] 🟡 [nit] **bot/handlers/payment_command_handlers.py:71** — `except Exception` w `handle_subscribe` — ukrywa AuthenticationError Stripe; zawęź lub re-raise dla nieoczekiwanych typów
+- [ ] 🟡 [nit] **bot/handlers/payment_command_handlers.py:16** — `TELEGRAM_BASE_URL` zduplikowany teraz w 5 plikach (carryover z Faz 1-2); wyciągnij do `bot/config.py`
+
+---
+
 ## Faza 4 — Google Integration (Units 12-14)
 
 ### Unit 12: Google OAuth 2.0 + Token Management
 
-- [ ] Stwórz `adhd-bot/bot/services/google_auth.py` (OAuth flow + `get_valid_token` z auto-refresh)
-- [ ] Stwórz `adhd-bot/bot/handlers/google_oauth_handler.py` (`/auth/google/callback`, `/connect-google`, `/disconnect-google`)
-- [ ] Stwórz `adhd-bot/tests/test_google_auth.py`
+- [x] Stwórz `adhd-bot/bot/services/google_auth.py` (OAuth flow + `get_valid_token` z auto-refresh)
+- [x] Stwórz `adhd-bot/bot/handlers/google_oauth_handler.py` (`/auth/google/callback`, `/connect-google`, `/disconnect-google`)
+- [x] Stwórz `adhd-bot/tests/test_google_auth.py`
 - [ ] Skonfiguruj Google OAuth Client w Google Cloud Console
-- [ ] Zaimplementuj OAuth state token (nanoid, TTL=10 min, Firestore `oauth_states/{state}`)
-- [ ] Zaimplementuj szyfrowanie tokenów przez AES-256 (klucz z Secret Manager)
-- [ ] Test: `/connect-google` generuje poprawny OAuth URL ze wszystkimi wymaganymi scope'ami
-- [ ] Test: Callback ze złym `state` → 400, brak zapisu tokenów
-- [ ] Test: Callback z wygasłym `state` (TTL) → 400
-- [ ] Test: `get_valid_token` wywołuje refresh gdy token wygasł
-- [ ] Test: `get_valid_token` nie wywołuje refresh gdy token ważny
-- [ ] Test: Refresh fail → user oznaczony jako disconnected, Telegram notification
+- [x] Zaimplementuj OAuth state token (nanoid, TTL=10 min, Firestore `oauth_states/{state}`)
+- [x] Zaimplementuj szyfrowanie tokenów przez AES-256 (klucz z Secret Manager)
+- [x] Test: `/connect-google` generuje poprawny OAuth URL ze wszystkimi wymaganymi scope'ami
+- [x] Test: Callback ze złym `state` → 400, brak zapisu tokenów
+- [x] Test: Callback z wygasłym `state` (TTL) → 400
+- [x] Test: `get_valid_token` wywołuje refresh gdy token wygasł
+- [x] Test: `get_valid_token` nie wywołuje refresh gdy token ważny
+- [x] Test: Refresh fail → user oznaczony jako disconnected, Telegram notification
 - [ ] Weryfikacja: Pełny OAuth flow end-to-end: kliknięcie linka → autoryzacja Google → bot wysyła potwierdzenie
 - [ ] Weryfikacja: Tokeny poprawnie zaszyfrowane w Firestore (brak plain text)
 
@@ -307,17 +320,17 @@ last_updated: 2026-04-09
 
 ### Unit 13: Google Calendar Integration (jednostronna sync bot → Calendar)
 
-- [ ] Stwórz `adhd-bot/bot/services/google_calendar.py` (`create_calendar_event`, `update_calendar_event_time`, `complete_calendar_event`, `delete_calendar_event`)
-- [ ] Stwórz `adhd-bot/tests/test_google_calendar.py`
+- [x] Stwórz `adhd-bot/bot/services/google_calendar.py` (`create_calendar_event`, `update_calendar_event_time`, `complete_calendar_event`, `delete_calendar_event`)
+- [x] Stwórz `adhd-bot/tests/test_google_calendar.py`
 - [ ] Enable Google Calendar API w GCP Console
 - [ ] Zintegruj `create_calendar_event` w Unit 7 po `task.transition(→ SCHEDULED)`
 - [ ] Zintegruj `update_calendar_event_time` w Unit 8 przy snoozie
 - [ ] Zintegruj `complete_calendar_event` i `delete_calendar_event` w Unit 8
-- [ ] Test: `create_calendar_event` tworzy event z poprawnym `scheduled_time`
-- [ ] Test: `create_calendar_event` dla usera bez Google → skip, brak błędu
-- [ ] Test: `update_calendar_event_time` wywołuje `events.patch` z nowym czasem
-- [ ] Test: `complete_calendar_event` wywołuje patch z zielonym kolorem
-- [ ] Test: `delete_calendar_event` wywołuje events.delete
+- [x] Test: `create_calendar_event` tworzy event z poprawnym `scheduled_time`
+- [x] Test: `create_calendar_event` dla usera bez Google → skip, brak błędu
+- [x] Test: `update_calendar_event_time` wywołuje `events.patch` z nowym czasem
+- [x] Test: `complete_calendar_event` wywołuje patch z zielonym kolorem
+- [x] Test: `delete_calendar_event` wywołuje events.delete
 - [ ] Weryfikacja: Utwórz reminder → event pojawia się w Google Calendar
 - [ ] Weryfikacja: Snooze → czas eventu zaktualizowany w Google Calendar
 - [ ] Weryfikacja: Done → event zielony w kalendarzu
@@ -326,18 +339,18 @@ last_updated: 2026-04-09
 
 ### Unit 14: Google Tasks Integration (bot→Tasks + polling Tasks→bot)
 
-- [ ] Stwórz `adhd-bot/bot/services/google_tasks.py` (`create_google_task`, `complete_google_task`, `delete_google_task`)
-- [ ] Stwórz `adhd-bot/bot/handlers/gtasks_polling_handler.py` (`/internal/poll-google-tasks`)
-- [ ] Stwórz `adhd-bot/tests/test_google_tasks.py`
+- [x] Stwórz `adhd-bot/bot/services/google_tasks.py` (`create_google_task`, `complete_google_task`, `delete_google_task`)
+- [x] Stwórz `adhd-bot/bot/handlers/gtasks_polling_handler.py` (`/internal/poll-google-tasks`)
+- [x] Stwórz `adhd-bot/tests/test_google_tasks.py`
 - [ ] Enable Google Tasks API w GCP Console
 - [ ] Skonfiguruj Cloud Scheduler: `*/5 * * * *` → `/internal/poll-google-tasks`
-- [ ] Zaimplementuj `nextSyncToken` dla delta queries
-- [ ] Test: `create_google_task` tworzy task z poprawnym `title` i `due`
-- [ ] Test: `create_google_task` dla usera bez Google → skip, brak błędu
-- [ ] Test: `complete_google_task` wywołuje `tasks.patch` ze `status: "completed"`
-- [ ] Test: Polling: Google Task `status: "completed"` → bot task → COMPLETED, Telegram notification
-- [ ] Test: Polling: Google Task nie zmieniony → brak akcji
-- [ ] Test: Polling dla 0 userów z Google → 200, brak błędów
+- [x] Zaimplementuj `nextSyncToken` dla delta queries
+- [x] Test: `create_google_task` tworzy task z poprawnym `title` i `due`
+- [x] Test: `create_google_task` dla usera bez Google → skip, brak błędu
+- [x] Test: `complete_google_task` wywołuje `tasks.patch` ze `status: "completed"`
+- [x] Test: Polling: Google Task `status: "completed"` → bot task → COMPLETED, Telegram notification
+- [x] Test: Polling: Google Task nie zmieniony → brak akcji
+- [x] Test: Polling dla 0 userów z Google → 200, brak błędów
 - [ ] Weryfikacja: Utwórz reminder → task pojawia się w Google Tasks
 - [ ] Weryfikacja: Oznacz task jako done w Google Tasks → po ≤5 min bot wysyła Telegram potwierdzenie
 - [ ] Weryfikacja: Ukończ task w bocie → Google Task oznaczony jako done

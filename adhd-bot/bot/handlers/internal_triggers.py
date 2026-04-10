@@ -34,6 +34,7 @@ def _verify_oidc_token(authorization: str | None) -> None:
 
     token = authorization.removeprefix("Bearer ").strip()
     try:
+        from google.auth.exceptions import GoogleAuthError, TransportError  # type: ignore
         from google.auth.transport import requests as google_requests  # type: ignore
         from google.oauth2 import id_token  # type: ignore
 
@@ -43,7 +44,7 @@ def _verify_oidc_token(authorization: str | None) -> None:
             google_requests.Request(),
             audience=audience,
         )
-    except Exception as exc:
+    except (GoogleAuthError, TransportError, ValueError) as exc:
         logger.warning("OIDC token verification failed: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid OIDC token") from exc
 

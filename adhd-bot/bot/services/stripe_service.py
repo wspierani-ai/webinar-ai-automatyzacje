@@ -9,6 +9,27 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+_TELEGRAM_BASE_URL = "https://api.telegram.org"
+
+
+async def _send_telegram_notification(telegram_user_id: int, text: str) -> None:
+    """Send a Telegram message to a user via Bot API.
+
+    No-op in test environments (TESTING=1).
+    """
+    if os.environ.get("TESTING") == "1":
+        return
+
+    import httpx
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    url = f"{_TELEGRAM_BASE_URL}/bot{token}/sendMessage"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(
+            url, json={"chat_id": telegram_user_id, "text": text, "parse_mode": "HTML"}
+        )
+        resp.raise_for_status()
+
 STRIPE_CURRENCY = "pln"
 
 
@@ -159,6 +180,20 @@ async def handle_invoice_payment_failed(db, invoice_data: dict) -> None:
         "User set to grace_period until %s (customer=%s)", grace_period_until, customer_id
     )
 
+    telegram_user_id = user_doc.id
+    if telegram_user_id:
+        try:
+            await _send_telegram_notification(
+                int(telegram_user_id),
+                "Płatność nie powiodła się 💳 Masz 3 dni na aktualizację karty: /billing",
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to send payment_failed notification to user %s: %s",
+                telegram_user_id,
+                exc,
+            )
+
 
 async def handle_invoice_payment_succeeded(db, invoice_data: dict) -> None:
     """Process invoice.payment_succeeded event.
@@ -206,6 +241,20 @@ async def handle_subscription_deleted(db, subscription_data: dict) -> None:
         "updated_at": datetime.now(tz=timezone.utc),
     })
     logger.info("User subscription deleted (customer=%s)", customer_id)
+
+    telegram_user_id = user_doc.id
+    if telegram_user_id:
+        try:
+            await _send_telegram_notification(
+                int(telegram_user_id),
+                "Subskrypcja anulowana. Wznów przez /subscribe.",
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to send subscription_deleted notification to user %s: %s",
+                telegram_user_id,
+                exc,
+            )
 
 
 async def _find_user_by_customer_id(db, customer_id: str):

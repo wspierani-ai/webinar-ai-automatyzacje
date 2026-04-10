@@ -84,10 +84,6 @@ async def stripe_webhook(
         logger.info("Stripe event %s already processed, skipping", event_id)
         return JSONResponse(content={"ok": True, "skipped": "duplicate"})
 
-    # Mark event as processed before handling (idempotency)
-    if event_id:
-        await mark_event_processed(db, event_id)
-
     event_data = event.get("data", {}).get("object", {})
 
     try:
@@ -107,5 +103,9 @@ async def stripe_webhook(
         return JSONResponse(
             content={"ok": False, "error": "processing failed"}, status_code=500
         )
+
+    # Mark as processed only after successful handler execution so Stripe can retry on failure
+    if event_id:
+        await mark_event_processed(db, event_id)
 
     return JSONResponse(content={"ok": True})

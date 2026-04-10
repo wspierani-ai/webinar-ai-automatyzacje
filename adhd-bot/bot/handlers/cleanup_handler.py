@@ -43,6 +43,7 @@ def _verify_oidc_token(authorization: str | None) -> None:
 
     token = authorization.removeprefix("Bearer ").strip()
     try:
+        from google.auth.exceptions import GoogleAuthError, TransportError  # type: ignore
         from google.auth.transport import requests as google_requests  # type: ignore
         from google.oauth2 import id_token  # type: ignore
 
@@ -52,7 +53,7 @@ def _verify_oidc_token(authorization: str | None) -> None:
             google_requests.Request(),
             audience=audience,
         )
-    except Exception as exc:
+    except (GoogleAuthError, TransportError, ValueError) as exc:
         logger.warning("OIDC token verification failed: %s", exc)
         raise HTTPException(status_code=401, detail="Invalid OIDC token") from exc
 
@@ -103,12 +104,11 @@ async def _block_expired_grace_period_users(db, now: datetime) -> int:
         data = doc.to_dict()
         grace_period_until = data.get("grace_period_until")
         if grace_period_until is None:
-            # No grace period end date — block immediately
-            await doc.reference.update({
-                "subscription_status": "blocked",
-                "updated_at": now,
-            })
-            count += 1
+            # No grace period end date — skip to avoid unintended blocking
+            logger.warning(
+                "Skipping grace_period user %s: grace_period_until is None",
+                data.get("telegram_user_id"),
+            )
             continue
 
         if hasattr(grace_period_until, "tzinfo") and grace_period_until.tzinfo is None:
@@ -146,24 +146,18 @@ async def _cleanup_orphaned_cloud_tasks(db, now: datetime) -> int:
             cloud_task_name = data.get("cloud_task_name")
             nudge_task_name = data.get("nudge_task_name")
 
-            cleaned = False
+            update_data: dict = {}
             if cloud_task_name:
                 await cancel_reminder(cloud_task_name)
-                await doc.reference.update({
-                    "cloud_task_name": None,
-                    "updated_at": now,
-                })
-                cleaned = True
+                update_data["cloud_task_name"] = None
 
             if nudge_task_name:
                 await cancel_reminder(nudge_task_name)
-                await doc.reference.update({
-                    "nudge_task_name": None,
-                    "updated_at": now,
-                })
-                cleaned = True
+                update_data["nudge_task_name"] = None
 
-            if cleaned:
+            if update_data:
+                update_data["updated_at"] = now
+                await doc.reference.update(update_data)
                 count += 1
 
     return count

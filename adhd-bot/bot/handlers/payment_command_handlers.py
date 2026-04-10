@@ -9,6 +9,7 @@ from bot.models.user import User
 from bot.services.stripe_service import (
     create_checkout_session,
     create_or_get_stripe_customer,
+    _get_stripe,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,58 +97,43 @@ async def handle_subscribe(message: dict, db, *, stripe=None) -> None:
 
 
 async def handle_billing(message: dict, db, *, stripe=None) -> None:
-    """Handle /billing command — show subscription status."""
+    """Handle /billing command — open Stripe Billing Portal or show status without active sub."""
     user_id = message["from"]["id"]
     chat_id = message["chat"]["id"]
 
     user = await User.get_or_create(db, telegram_user_id=user_id)
 
-    status = user.subscription_status
-
-    if status == "active":
-        text = (
-            "✅ <b>Status subskrypcji: Aktywna</b>\n\n"
-            "Twoja subskrypcja jest aktywna. Dziękujemy!\n"
-            "Aby anulować, skontaktuj się z pomocą techniczną."
+    if not user.stripe_customer_id:
+        await _send_message(
+            chat_id,
+            "Nie masz jeszcze aktywnej subskrypcji.\n"
+            "Użyj /subscribe, aby wykupić subskrypcję.",
         )
-    elif status == "trial":
-        from datetime import datetime, timezone
-        if user.trial_ends_at:
-            now = datetime.now(tz=timezone.utc)
-            days_left = max(0, (user.trial_ends_at - now).days)
-            text = (
-                f"⏳ <b>Status subskrypcji: Trial</b>\n\n"
-                f"Pozostało dni próbnych: <b>{days_left}</b>\n\n"
-                f"Aby kontynuować po zakończeniu trialu, użyj /subscribe"
-            )
-        else:
-            text = (
-                "⏳ <b>Status subskrypcji: Trial</b>\n\n"
-                "Korzystasz z darmowego okresu próbnego.\n"
-                "Użyj /subscribe, aby kupić subskrypcję."
-            )
-    elif status == "grace_period":
-        from datetime import datetime, timezone
-        if user.grace_period_until:
-            now = datetime.now(tz=timezone.utc)
-            days_left = max(0, (user.grace_period_until - now).days)
-            text = (
-                f"⚠️ <b>Status subskrypcji: Grace Period</b>\n\n"
-                f"Twoja płatność nie powiodła się. Masz <b>{days_left} dni</b> na odnowienie.\n\n"
-                f"Użyj /subscribe, aby odnowić subskrypcję."
-            )
-        else:
-            text = (
-                "⚠️ <b>Status subskrypcji: Grace Period</b>\n\n"
-                "Twoja płatność nie powiodła się.\n"
-                "Użyj /subscribe, aby odnowić subskrypcję."
-            )
-    else:
-        # blocked or unknown
-        text = (
-            "🔒 <b>Status subskrypcji: Zablokowana</b>\n\n"
-            "Twój dostęp do bota jest zablokowany.\n\n"
-            "Użyj /subscribe, aby wykupić subskrypcję."
-        )
+        return
 
-    await _send_message(chat_id, text)
+    if stripe is None:
+        stripe = _get_stripe()
+
+    service_url = os.environ.get("CLOUD_RUN_SERVICE_URL", "https://example.com")
+    return_url = service_url.rstrip("/")
+
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=user.stripe_customer_id,
+            return_url=return_url,
+        )
+        portal_url: str = portal_session["url"]
+    except Exception as exc:
+        logger.error("Failed to create billing portal session for user %s: %s", user_id, exc)
+        await _send_message(
+            chat_id,
+            "❌ Wystąpił błąd podczas otwierania portalu płatności. Spróbuj ponownie później.",
+        )
+        return
+
+    await _send_message(
+        chat_id,
+        f"🔧 <b>Zarządzaj subskrypcją</b>\n\n"
+        f"Kliknij poniższy link, aby zaktualizować kartę, zmienić plan lub anulować subskrypcję:\n\n"
+        f"<a href='{portal_url}'>Otwórz portal płatności</a>",
+    )

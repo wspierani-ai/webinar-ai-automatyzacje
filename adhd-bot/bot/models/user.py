@@ -123,8 +123,9 @@ class User:
 
         try:
             return await cls._get_or_create_in_transaction(db, doc_ref, telegram_user_id, **defaults)
-        except Exception:
+        except (ImportError, AttributeError, TypeError):
             # Fallback: no real Firestore (mock / unit-test environment)
+            # TypeError is raised when MagicMock (non-async) is used in tests
             doc = await doc_ref.get()
             if doc.exists:
                 return cls.from_firestore_dict(doc.to_dict())

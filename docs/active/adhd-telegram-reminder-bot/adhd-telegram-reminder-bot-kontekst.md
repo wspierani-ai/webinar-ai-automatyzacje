@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Kontekst techniczny
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09 (Faza 3 zaimplementowana)
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 4 zaimplementowana)
 
 ## Powiązane pliki źródłowe
 
@@ -247,7 +247,7 @@ Unit 3  ─→ Unit 21
 | Faza 1 — Core Bot (Units 1-8) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 2 — Polish (Units 9-10) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 3 — Monetyzacja (Unit 11) | ✅ Zaimplementowana | 2026-04-09 |
-| Faza 4 — Google Integration (Units 12-14) | ⬜ Do zrobienia | — |
+| Faza 4 — Google Integration (Units 12-14) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 5 — Admin Dashboard + Security (Units 15-18) | ⬜ Do zrobienia | — |
 | Faza 6 — Checklista + RODO (Units 19-21) | ⬜ Do zrobienia | — |
 
@@ -425,6 +425,97 @@ Faza 2 jest gotowa do kontynuacji z zastrzeżeniami. Implementacja idempotentna 
 - TESTING=1 mode pomija weryfikację sygnatury Stripe — umożliwia testy bez prawdziwego webhook secret
 - `handle_invoice_payment_failed` szuka usera po `stripe_customer_id` — obsługuje eventy bez telegram_user_id w metadata
 - Grace period: 3 dni po `invoice.payment_failed`, cleanup job (Unit 10) blokuje po wygaśnięciu
+
+## Review Fazy 3 (2026-04-09)
+
+**Wynik:** ⚠️ KONTYNUUJ Z ZASTRZEŻENIAMI — P1=0, P2=3, P3=5  
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-3.md`
+
+### P2 — wymagają naprawy
+
+- `stripe_webhook_handler.py:89,105-108` — Mark-before-handle: `mark_event_processed` wywołane przed handlerem. Przy 500 z handlera Stripe ponowi, dedup match → event trwale pominięty (utrata `checkout.session.completed`, `invoice.payment_failed`, etc.)
+- `stripe_service.py:137-217` — Brak Telegram notification w `handle_invoice_payment_failed` i `handle_subscription_deleted` — wymagane przez plan techniczny (linie 783-785)
+- `payment_command_handlers.py:98-153` — `/billing` bez Stripe Billing Portal — plan definiuje `stripe.billing_portal.Session.create(...)`, impl pokazuje tylko status tekstowy
+
+### P3 — odłożone do kolejnej fazy
+
+- `stripe_webhook_handler.py:60` — `except Exception` w signature verification → zawęź do `stripe.error.SignatureVerificationError`
+- `stripe_service.py:15-19` — `STRIPE_API_KEY` z `os.environ` per call zamiast Config singleton
+- `stripe_webhook_handler.py:105` + `payment_command_handlers.py:71` — broad except Exception w handlerach
+- `payment_command_handlers.py:16` — `TELEGRAM_BASE_URL` teraz w 5 plikach (carryover nienaprawiony)
+
+### Udokumentowane odchylenia od planu
+
+- Lazy Stripe Customer (przy `/subscribe`, nie przy `/start`) — OK, dokumentacja istnieje
+- `/billing` bez portalu — NIEZUDOKUMENTOWANE, wymaga naprawy lub dokumentacji
+
+### Kluczowe wnioski
+
+Architektura Stripe jest poprawna: weryfikacja sygnatury działa, deduplication przez `stripe_events/{event_id}` jest spójna ze wzorcem Telegram. Główny problem to mark-before-handle który przy błędach handlerów prowadzi do trwałej utraty eventów. Brak Telegram notyfikacji przy payment_failed/deleted jest gap funkcjonalny wobec planu. Security webhook jest solidna.
+
+**Dobre wzorce potwierdzone:**
+- `stripe.Webhook.construct_event()` — poprawna weryfikacja sygnatury
+- TESTING=1 bypass wyłącznie dla testów, nie w produkcji
+- Lazy customer creation — minimalizuje API calls dla trial userów
+- `_find_user_by_customer_id` — poprawny lookup bez zakładania `telegram_user_id` w metadata
+
+## Review Fazy 3 — re-run cykl 1 (weryfikacja naprawy P2) (2026-04-09)
+
+**Wynik:** ✅ GOTOWE DO KONTYNUACJI — P1=0, P2=0, P3=5  
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-3.md`
+
+### P2 z cyklu 0 — naprawione ✅
+
+- `stripe_webhook_handler.py` — kolejność odwrócona: handler w `try`, `mark_event_processed` PO sukcesie (linie 89-109) — ✅ ZWERYFIKOWANE
+  - Przy wyjątku handlera: 500 bez markowania, Stripe może ponawiać bezpiecznie
+- `stripe_service.py` — dodana `_send_telegram_notification()` (no-op w TESTING=1), wywołana w `handle_invoice_payment_failed` i `handle_subscription_deleted` — ✅ ZWERYFIKOWANE
+  - Notification failure logowany jako error, nie propaguje wyjątku
+- `payment_command_handlers.py` — `handle_billing()` implementuje `stripe.billing_portal.Session.create(customer, return_url)` z linkiem HTML — ✅ ZWERYFIKOWANE
+  - User bez stripe_customer_id → sugestia /subscribe zamiast błędu
+
+### Łącznie naprawione P2 (3/3)
+- Mark-before-handle pattern naprawiony — ✅
+- Telegram notification przy payment_failed — ✅
+- Telegram notification przy subscription_deleted — ✅
+- Stripe Billing Portal w /billing — ✅
+
+### Pozostałe P3 (nieblokujące — do Unit 18 Security Hardening)
+- `except Exception` w signature verification i handlerach
+- `STRIPE_API_KEY` z os.environ zamiast Config singleton
+- `TELEGRAM_BASE_URL` zduplikowany w 5 plikach
+
+### Kluczowe wnioski
+
+Faza 3 jest gotowa do kontynuacji. Mark-after-handle zapewnia reliability Stripe webhooków. Telegram notyfikacje przy kluczowych eventach płatniczych pokrywają UX requirement z planu. Billing Portal daje użytkownikom samodzielne zarządzanie subskrypcją.
+
+## Zmiany w Fazie 4 (2026-04-09)
+
+### Stworzone pliki
+- `adhd-bot/bot/services/google_auth.py` — OAuth state generation, URL building, token exchange, AES-256 encryption, get_valid_token z auto-refresh, disconnect
+- `adhd-bot/bot/handlers/google_oauth_handler.py` — `/auth/google/callback` endpoint, `handle_connect_google`, `handle_disconnect_google` Telegram handlers
+- `adhd-bot/bot/services/google_calendar.py` — create/update_time/complete/delete calendar events, graceful skip gdy brak Google
+- `adhd-bot/bot/services/google_tasks.py` — create/complete/delete Google Tasks, poll_user_tasks z nextSyncToken
+- `adhd-bot/bot/handlers/gtasks_polling_handler.py` — `/internal/poll-google-tasks` endpoint, `_process_user_polling`, `_sync_completed_task`
+- `adhd-bot/tests/test_google_auth.py` — 21 testów (OAuth URL, state verify TTL, get_valid_token, refresh, encrypt/decrypt, disconnect, callback endpoint)
+- `adhd-bot/tests/test_google_calendar.py` — 11 testów (create, update, complete, delete, graceful skip)
+- `adhd-bot/tests/test_google_tasks.py` — 14 testów (create, complete, polling, Telegram notification, sync skip)
+
+### Zmodyfikowane pliki
+- `adhd-bot/main.py` — podpięte google_oauth_router i gtasks_polling_router
+
+### Testy (198 testów łącznie, wszystkie przechodzą)
+- `tests/test_google_auth.py` — 21 testów
+- `tests/test_google_calendar.py` — 11 testów
+- `tests/test_google_tasks.py` — 14 testów
+
+### Kluczowe decyzje implementacyjne
+- AES-256 GCM szyfrowanie tokenów przez `cryptography` library (fallback do base64 gdy niedostępna w dev/tests)
+- `get_valid_token` sprawdza `token_expiry < now() + 5min` jako bufor → refresh
+- `_build_google_service` i `_build_tasks_service` jako sync funkcje wrapping `googleapiclient.discovery.build`
+- Tokeny importowane na poziomie modułu (nie w funkcjach) by umożliwić patching w testach
+- `poll_user_tasks` używa `nextSyncToken` dla delta queries — oszczędność Google Tasks API quota
+- Integracja Google jest w pełni opcjonalna: każda funkcja jest graceful no-op gdy `get_valid_token` zwróci None
+- TESTING=1 env var pomija wysyłkę Telegram notyfikacji w testach
 
 ## Źródła
 
