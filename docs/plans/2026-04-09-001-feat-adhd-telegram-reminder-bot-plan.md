@@ -971,7 +971,7 @@ Obsługiwane eventy:
 
 ### Faza H: Admin Dashboard + Security
 
-- [ ] **Unit 15: Gemini Token Usage Tracking**
+- [x] **Unit 15: Gemini Token Usage Tracking**
 
 **Cel:** Rejestrowanie zużycia tokenów Gemini per user per dzień. Podstawa dla cost analytics w dashboardzie.
 
@@ -1019,7 +1019,7 @@ updated_at: Timestamp
 
 ---
 
-- [ ] **Unit 16: Admin Authentication (Google SSO + Role Management)**
+- [x] **Unit 16: Admin Authentication (Google SSO + Role Management)**
 
 **Cel:** Zabezpieczony dostęp do dashboardu przez Google SSO. Role admin/read-only. JWT session cookie. Audit log.
 
@@ -1081,7 +1081,7 @@ Logowane automatycznie przez middleware dla wszystkich `POST`/`PATCH`/`DELETE` n
 
 ---
 
-- [ ] **Unit 17: Admin Dashboard API + Web UI**
+- [x] **Unit 17: Admin Dashboard API + Web UI**
 
 **Cel:** API endpoints z danymi i minimalna strona webowa (Jinja2 + Tailwind + Alpine.js). Widoki: overview, lista klientów, szczegóły usera, przychody.
 
@@ -1165,7 +1165,7 @@ Logowane automatycznie przez middleware dla wszystkich `POST`/`PATCH`/`DELETE` n
 
 ---
 
-- [ ] **Unit 18: Security Hardening**
+- [x] **Unit 18: Security Hardening**
 
 **Cel:** Szyfrowanie wrażliwych danych przez Cloud KMS, security headers, rate limiting, Firestore Security Rules, input validation. Przekrojowe — modyfikuje wiele istniejących modułów.
 

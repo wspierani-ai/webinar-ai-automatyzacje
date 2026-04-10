@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Zadania
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 5 zaimplementowana)
 
 ---
 
@@ -377,13 +377,13 @@ last_updated: 2026-04-09
 
 ### Unit 15: Gemini Token Usage Tracking
 
-- [ ] Modyfikuj `adhd-bot/bot/services/ai_parser.py` (dodaj token tracking jako fire-and-forget)
-- [ ] Stwórz `adhd-bot/bot/services/token_tracker.py` (`record_usage` z atomic Firestore increment)
-- [ ] Stwórz `adhd-bot/tests/test_token_tracker.py`
-- [ ] Test: `record_usage` zapisuje poprawne wartości w Firestore (atomic increment)
-- [ ] Test: Koszt PLN kalkulowany poprawnie dla znanych token counts
-- [ ] Test: `record_usage` nie blokuje parse_message (fire-and-forget)
-- [ ] Test: `record_usage` nie rzuca wyjątku gdy Firestore niedostępny (graceful fail)
+- [x] Modyfikuj `adhd-bot/bot/services/ai_parser.py` (dodaj token tracking jako fire-and-forget)
+- [x] Stwórz `adhd-bot/bot/services/token_tracker.py` (`record_usage` z atomic Firestore increment)
+- [x] Stwórz `adhd-bot/tests/test_token_tracker.py`
+- [x] Test: `record_usage` zapisuje poprawne wartości w Firestore (atomic increment)
+- [x] Test: Koszt PLN kalkulowany poprawnie dla znanych token counts
+- [x] Test: `record_usage` nie blokuje parse_message (fire-and-forget)
+- [x] Test: `record_usage` nie rzuca wyjątku gdy Firestore niedostępny (graceful fail)
 - [ ] Weryfikacja: Po 5 wywołaniach Gemini: kolekcja `token_usage` zawiera poprawne sumy
 - [ ] Weryfikacja: Koszt PLN bliski rzeczywistemu rachunkowi Vertex AI
 
@@ -391,18 +391,18 @@ last_updated: 2026-04-09
 
 ### Unit 16: Admin Authentication (Google SSO + Role Management)
 
-- [ ] Stwórz `adhd-bot/bot/admin/__init__.py`
-- [ ] Stwórz `adhd-bot/bot/admin/auth.py` (OAuth flow + JWT session, ADMIN_JWT_SECRET z Secret Manager)
-- [ ] Stwórz `adhd-bot/bot/admin/middleware.py` (`require_admin` + `require_admin_write` Depends)
-- [ ] Stwórz `adhd-bot/tests/test_admin_auth.py`
+- [x] Stwórz `adhd-bot/bot/admin/__init__.py`
+- [x] Stwórz `adhd-bot/bot/admin/auth.py` (OAuth flow + JWT session, ADMIN_JWT_SECRET z Secret Manager)
+- [x] Stwórz `adhd-bot/bot/admin/middleware.py` (`require_admin` + `require_admin_write` Depends)
+- [x] Stwórz `adhd-bot/tests/test_admin_auth.py`
 - [ ] Dodaj pierwszego admina do Firestore `admin_users/{email}`
-- [ ] Zaimplementuj audit log middleware dla POST/PATCH/DELETE na `/admin/*`
-- [ ] Test: Callback z emailem nie w `admin_users` → 403
-- [ ] Test: Callback z poprawnym emailem → JWT cookie ustawiony, redirect do `/admin`
-- [ ] Test: Request bez cookie → redirect do `/admin/login`
-- [ ] Test: Request z wygasłym JWT → redirect do `/admin/login`
-- [ ] Test: `require_admin_write` z role="read-only" → 403
-- [ ] Test: POST /admin/* → audit log tworzony z poprawnym email i action
+- [x] Zaimplementuj audit log middleware dla POST/PATCH/DELETE na `/admin/*`
+- [x] Test: Callback z emailem nie w `admin_users` → 403
+- [x] Test: Callback z poprawnym emailem → JWT cookie ustawiony, redirect do `/admin`
+- [x] Test: Request bez cookie → redirect do `/admin/login`
+- [x] Test: Request z wygasłym JWT → redirect do `/admin/login`
+- [x] Test: `require_admin_write` z role="read-only" → 403
+- [x] Test: POST /admin/* → audit log tworzony z poprawnym email i action
 - [ ] Weryfikacja: Logowanie przez Google → dostęp do dashboardu
 - [ ] Weryfikacja: Email spoza whitelist → 403 bez dostępu
 - [ ] Weryfikacja: Audit log widoczny w Firestore po każdej write akcji
@@ -411,22 +411,22 @@ last_updated: 2026-04-09
 
 ### Unit 17: Admin Dashboard API + Web UI
 
-- [ ] Stwórz `adhd-bot/bot/admin/router.py` (FastAPI router `/admin/*`)
-- [ ] Stwórz `adhd-bot/bot/admin/queries.py` (Firestore queries dla metryk)
-- [ ] Stwórz `adhd-bot/templates/admin/base.html`
-- [ ] Stwórz `adhd-bot/templates/admin/dashboard.html` (overview + Chart.js)
-- [ ] Stwórz `adhd-bot/templates/admin/users.html` (tabela z paginacją, filtry)
-- [ ] Stwórz `adhd-bot/templates/admin/user_detail.html` (szczegóły + akcje admina)
-- [ ] Stwórz `adhd-bot/tests/test_admin_queries.py`
-- [ ] Zaimplementuj `GET /admin/api/overview` (MRR, ARR, churn, conversion rate)
-- [ ] Zaimplementuj `GET /admin/api/users` (paginacja, filter, search)
-- [ ] Zaimplementuj `GET /admin/api/users/{user_id}` (szczegóły + Stripe history)
-- [ ] Zaimplementuj `PATCH /admin/api/users/{user_id}/subscription` (unblock, extend_trial)
-- [ ] Test: `GET /admin/api/overview` bez auth → redirect do login
-- [ ] Test: `GET /admin/api/overview` z read-only auth → 200 z poprawnymi polami
-- [ ] Test: `PATCH /admin/api/users/{id}/subscription` z read-only auth → 403
-- [ ] Test: `PATCH /admin/api/users/{id}/subscription` z admin auth → 200, audit log created
-- [ ] Test: Query `users` z filter `status=blocked` → tylko blocked userzy
+- [x] Stwórz `adhd-bot/bot/admin/router.py` (FastAPI router `/admin/*`)
+- [x] Stwórz `adhd-bot/bot/admin/queries.py` (Firestore queries dla metryk)
+- [x] Stwórz `adhd-bot/templates/admin/base.html`
+- [x] Stwórz `adhd-bot/templates/admin/dashboard.html` (overview + Chart.js)
+- [x] Stwórz `adhd-bot/templates/admin/users.html` (tabela z paginacją, filtry)
+- [x] Stwórz `adhd-bot/templates/admin/user_detail.html` (szczegóły + akcje admina)
+- [x] Stwórz `adhd-bot/tests/test_admin_queries.py`
+- [x] Zaimplementuj `GET /admin/api/overview` (MRR, ARR, churn, conversion rate)
+- [x] Zaimplementuj `GET /admin/api/users` (paginacja, filter, search)
+- [x] Zaimplementuj `GET /admin/api/users/{user_id}` (szczegóły + Stripe history)
+- [x] Zaimplementuj `PATCH /admin/api/users/{user_id}/subscription` (unblock, extend_trial)
+- [x] Test: `GET /admin/api/overview` bez auth → redirect do login
+- [x] Test: `GET /admin/api/overview` z read-only auth → 200 z poprawnymi polami
+- [x] Test: `PATCH /admin/api/users/{id}/subscription` z read-only auth → 403
+- [x] Test: `PATCH /admin/api/users/{id}/subscription` z admin auth → 200, audit log created
+- [x] Test: Query `users` z filter `status=blocked` → tylko blocked userzy
 - [ ] Weryfikacja: Dashboard ładuje się w przeglądarce z poprawnymi danymi
 - [ ] Weryfikacja: Lista userów pokazuje poprawne statusy
 - [ ] Weryfikacja: Wykres MRR renderuje się z Chart.js
@@ -435,23 +435,23 @@ last_updated: 2026-04-09
 
 ### Unit 18: Security Hardening
 
-- [ ] Stwórz `adhd-bot/bot/security/__init__.py`
-- [ ] Stwórz `adhd-bot/bot/security/encryption.py` (Cloud KMS wrapper: encrypt/decrypt)
-- [ ] Stwórz `adhd-bot/bot/security/rate_limiter.py` (slowapi config per endpoint)
-- [ ] Stwórz `adhd-bot/bot/security/headers.py` (HSTS, CSP, X-Frame-Options middleware)
-- [ ] Stwórz `adhd-bot/bot/security/validators.py` (`validate_timezone`, `validate_time_format`, `validate_text_length`, `sanitize_for_logging`)
-- [ ] Stwórz `adhd-bot/firestore.rules` (deny all direct access)
-- [ ] Modyfikuj `adhd-bot/main.py` (dodaj security middleware)
+- [x] Stwórz `adhd-bot/bot/security/__init__.py`
+- [x] Stwórz `adhd-bot/bot/security/encryption.py` (Cloud KMS wrapper: encrypt/decrypt)
+- [x] Stwórz `adhd-bot/bot/security/rate_limiter.py` (slowapi config per endpoint)
+- [x] Stwórz `adhd-bot/bot/security/headers.py` (HSTS, CSP, X-Frame-Options middleware)
+- [x] Stwórz `adhd-bot/bot/security/validators.py` (`validate_timezone`, `validate_time_format`, `validate_text_length`, `sanitize_for_logging`)
+- [x] Stwórz `adhd-bot/firestore.rules` (deny all direct access)
+- [x] Modyfikuj `adhd-bot/main.py` (dodaj security middleware)
 - [ ] Modyfikuj `adhd-bot/bot/services/google_auth.py` (użyj encryption.py dla tokenów)
-- [ ] Stwórz `adhd-bot/tests/test_security.py`
+- [x] Stwórz `adhd-bot/tests/test_security.py`
 - [ ] Utwórz Cloud KMS key ring i klucz `oauth-tokens` w europe-central2
 - [ ] Przenieś wszystkie sekrety do Secret Manager (checklist w Unit 18 specyfikacji)
-- [ ] Test: `encrypt` + `decrypt` round-trip → identyczny plaintext
-- [ ] Test: Security headers obecne we wszystkich `/admin/*` responses
-- [ ] Test: Rate limiter zwraca 429 po przekroczeniu limitu `/auth/google/callback`
+- [x] Test: `encrypt` + `decrypt` round-trip → identyczny plaintext
+- [x] Test: Security headers obecne we wszystkich `/admin/*` responses
+- [x] Test: Rate limiter zwraca 429 po przekroczeniu limitu `/auth/google/callback`
 - [ ] Test: Firestore rules: bezpośredni request HTTP do Firestore REST API → permission denied
-- [ ] Test: `validate_timezone("Invalid/Zone")` → rzuca `ValidationError`
-- [ ] Test: `sanitize_for_logging("token abc123")` → nie zawiera pełnego tokenu w output
+- [x] Test: `validate_timezone("Invalid/Zone")` → rzuca `ValidationError`
+- [x] Test: `sanitize_for_logging("token abc123")` → nie zawiera pełnego tokenu w output
 - [ ] Weryfikacja: Security headers sprawdzone przez `curl -I {url}`
 - [ ] Weryfikacja: Rate limiting aktywne: 11 szybkich requestów do `/auth/google/callback` → ostatni 429
 - [ ] Weryfikacja: Pentest: bezpośredni dostęp do Firestore REST API bez service account → denied

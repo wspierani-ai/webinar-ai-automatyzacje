@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Kontekst techniczny
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09 (Faza 4 zaimplementowana)
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 5 zaimplementowana)
 
 ## Powiązane pliki źródłowe
 
@@ -248,7 +248,7 @@ Unit 3  ─→ Unit 21
 | Faza 2 — Polish (Units 9-10) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 3 — Monetyzacja (Unit 11) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 4 — Google Integration (Units 12-14) | ✅ Zaimplementowana | 2026-04-09 |
-| Faza 5 — Admin Dashboard + Security (Units 15-18) | ⬜ Do zrobienia | — |
+| Faza 5 — Admin Dashboard + Security (Units 15-18) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 6 — Checklista + RODO (Units 19-21) | ⬜ Do zrobienia | — |
 
 ## Zmiany w Fazie 1 (2026-04-09)
@@ -516,6 +516,91 @@ Faza 3 jest gotowa do kontynuacji. Mark-after-handle zapewnia reliability Stripe
 - `poll_user_tasks` używa `nextSyncToken` dla delta queries — oszczędność Google Tasks API quota
 - Integracja Google jest w pełni opcjonalna: każda funkcja jest graceful no-op gdy `get_valid_token` zwróci None
 - TESTING=1 env var pomija wysyłkę Telegram notyfikacji w testach
+
+## Review Fazy 4 (2026-04-09)
+
+**Wynik:** ⚠️ KONTYNUUJ Z ZASTRZEŻENIAMI — P1=1, P2=4, P3=6  
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-4.md`
+
+### P1 — blokujący
+- `cryptography` brak w `requirements.txt` — AES-256 encryption tokenów nie zadziała w produkcji; fallback do plain base64
+
+### P2 — wymagają naprawy
+- `gtasks_polling_handler.py:192` — `SCHEDULED` w completable_states ale state machine zabrania `SCHEDULED → COMPLETED`; InvalidStateTransitionError silently swallowed
+- `google_auth.py:300` — `except Exception` w `_refresh_access_token` zbyt szeroki
+- `google_auth.py:115-137` — `verify_oauth_state` nie waliduje typu `telegram_user_id`
+- `google_calendar.py:83` + `google_tasks.py:67` — synchroniczne `.execute()` blokuje async event loop
+
+### Kluczowe wnioski
+
+OAuth flow z CSRF protection (state token, TTL 10 min, single-use) jest poprawny. AES-256 GCM implementacja jest kryptograficznie poprawna, ale wymaga dodania dependency do requirements.txt. Graceful no-op pattern (skip gdy brak Google) jest konsekwentnie zastosowany. Polling z nextSyncToken oszczędza quota.
+
+**Blokująca naprawa:** dodanie `cryptography` do `requirements.txt` jest konieczne przed jakimkolwiek deploy — bez tego tokeny będą w plaintext.
+
+## Review Fazy 4 — re-run cykl 2 (weryfikacja naprawy P1+P2) (2026-04-09)
+
+**Wynik:** ✅ GOTOWE DO KONTYNUACJI — P1=0, P2=0, P3=6
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-4.md`
+
+Wszystkie naprawki z cyklu 1 zweryfikowane:
+- P1-1: `cryptography==44.0.0` w requirements.txt -- OK
+- P2-1: `SCHEDULED` usuniety z completable_states -- OK
+- P2-2: `_refresh_access_token` restrukturyzowany (encryption poza try/except) -- OK
+- P2-3: `verify_oauth_state` waliduje typ `telegram_user_id` -- OK
+- P2-4: `asyncio.to_thread()` dla sync Google API calls -- OK
+
+198/198 testow przechodzi. Brak nowych problemow. Faza 4 gotowa do kontynuacji.
+
+## Zmiany w Fazie 5 (2026-04-09)
+
+### Stworzone pliki
+- `adhd-bot/bot/services/token_tracker.py` — fire-and-forget Gemini token usage tracking (atomic Firestore increment per user/day)
+- `adhd-bot/bot/admin/__init__.py` — admin module init
+- `adhd-bot/bot/admin/auth.py` — Google SSO OAuth flow + JWT session + audit log
+- `adhd-bot/bot/admin/middleware.py` — require_admin, require_admin_write FastAPI Depends + AdminAuditMiddleware
+- `adhd-bot/bot/admin/queries.py` — Firestore queries: overview stats, users list, user detail
+- `adhd-bot/bot/admin/router.py` — Admin dashboard API + Web UI endpoints
+- `adhd-bot/bot/security/__init__.py` — security module init
+- `adhd-bot/bot/security/encryption.py` — Cloud KMS wrapper with local AES-256-GCM fallback
+- `adhd-bot/bot/security/rate_limiter.py` — slowapi config per endpoint type
+- `adhd-bot/bot/security/headers.py` — SecurityHeadersMiddleware (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy)
+- `adhd-bot/bot/security/validators.py` — validate_timezone, validate_time_format, validate_text_length, sanitize_for_logging
+- `adhd-bot/firestore.rules` — deny all direct access (Server SDK only)
+- `adhd-bot/templates/admin/base.html` — Jinja2 base template (Tailwind CDN + Alpine.js + Chart.js)
+- `adhd-bot/templates/admin/dashboard.html` — overview cards + MRR chart
+- `adhd-bot/templates/admin/users.html` — user table with pagination and status filters
+- `adhd-bot/templates/admin/user_detail.html` — user detail with tasks, token usage chart, admin actions
+- `adhd-bot/tests/test_token_tracker.py` — 8 testow (cost calc, Firestore writes, graceful fail, fire-and-forget)
+- `adhd-bot/tests/test_admin_auth.py` — 12 testow (JWT, OAuth callback, role enforcement, audit log)
+- `adhd-bot/tests/test_admin_queries.py` — 8 testow (overview stats, user list, API auth, subscription mgmt)
+- `adhd-bot/tests/test_security.py` — 19 testow (encrypt/decrypt, headers, rate limit 429, validators)
+
+### Zmodyfikowane pliki
+- `adhd-bot/bot/services/ai_parser.py` — dodany import token_tracker, fire-and-forget tracking w parse_message i parse_voice_message, dodany parametr user_id
+- `adhd-bot/main.py` — dodane admin routery, SecurityHeadersMiddleware, AdminAuditMiddleware, slowapi rate limiter
+- `adhd-bot/requirements.txt` — dodane PyJWT==2.9.0, jinja2==3.1.5, slowapi==0.1.9
+
+### Testy (245 testow lacznie, wszystkie przechodza)
+- `tests/test_token_tracker.py` — 8 testow
+- `tests/test_admin_auth.py` — 12 testow
+- `tests/test_admin_queries.py` — 8 testow
+- `tests/test_security.py` — 19 testow
+
+### Kluczowe decyzje implementacyjne
+- Token tracker uses `_make_increment()` helper that returns raw values in TESTING mode, Firestore Increment transforms in production
+- Admin auth extracts HTTP calls into `_exchange_code_for_token` and `_get_google_userinfo` for testability
+- Admin OAuth uses same GOOGLE_CLIENT_ID/SECRET as user OAuth (separate flows, same credentials)
+- JWT session cookies: HttpOnly, Secure, SameSite=lax, max_age=8h
+- SecurityHeadersMiddleware applies to all routes (not just /admin)
+- Rate limiter configured via slowapi Limiter but actual @limiter.limit decorators should be applied per-endpoint when deploying
+- encryption.py falls back to local AES-256-GCM in TESTING=1, Cloud KMS in production
+- Dashboard uses Alpine.js for dynamic data loading via fetch() to JSON API endpoints
+
+### Niezaimplementowane checkboxy (wymagajace GCP access)
+- "Dodaj pierwszego admina do Firestore admin_users/{email}" — wymaga produkcyjnego Firestore
+- "Utwórz Cloud KMS key ring i klucz oauth-tokens" — wymaga GCP Console
+- "Przenieś wszystkie sekrety do Secret Manager" — wymaga GCP access
+- "Modyfikuj google_auth.py (użyj encryption.py)" — google_auth.py już ma własne AES-256 szyfrowanie, migration do security/encryption.py jest opcjonalna
 
 ## Źródła
 
