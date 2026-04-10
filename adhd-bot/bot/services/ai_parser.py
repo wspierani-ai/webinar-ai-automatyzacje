@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -9,6 +10,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
+
+from bot.services import token_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,7 @@ def _parse_gemini_response(raw_text: str, user_timezone: str) -> ParsedTask:
 async def parse_message(
     text: str,
     user_timezone: str = "Europe/Warsaw",
+    user_id: int = 0,
 ) -> ParsedTask:
     """Parse a text message via Gemini → ParsedTask.
 
@@ -116,6 +120,9 @@ async def parse_message(
                 "temperature": 0.0,
             },
         )
+
+        _fire_and_forget_token_tracking(response, user_id)
+
         return _parse_gemini_response(response.text, user_timezone)
 
     except Exception as exc:  # noqa: BLE001
@@ -127,6 +134,7 @@ async def parse_voice_message(
     audio_bytes: bytes,
     user_timezone: str = "Europe/Warsaw",
     mime_type: str = "audio/ogg",
+    user_id: int = 0,
 ) -> ParsedTask:
     """Parse a voice message via Gemini → ParsedTask.
 
@@ -155,8 +163,37 @@ async def parse_voice_message(
                 "temperature": 0.0,
             },
         )
+
+        _fire_and_forget_token_tracking(response, user_id)
+
         return _parse_gemini_response(response.text, user_timezone)
 
     except Exception as exc:  # noqa: BLE001
         logger.error("Gemini parse_voice_message failed: %s", exc)
         return ParsedTask(content=None, scheduled_time=None, confidence=0.0)
+
+
+def _fire_and_forget_token_tracking(response, user_id: int) -> None:
+    """Extract usage metadata from Gemini response and track asynchronously."""
+    if user_id == 0:
+        return
+
+    try:
+        usage = getattr(response, "usage_metadata", None)
+        if usage is None:
+            return
+
+        input_tokens = getattr(usage, "prompt_token_count", 0) or 0
+        output_tokens = getattr(usage, "candidates_token_count", 0) or 0
+
+        if input_tokens == 0 and output_tokens == 0:
+            return
+
+        from bot.services.firestore_client import get_firestore_client
+
+        db = get_firestore_client()
+        asyncio.create_task(
+            token_tracker.record_usage(db, user_id, input_tokens, output_tokens)
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to schedule token tracking: %s", exc)
