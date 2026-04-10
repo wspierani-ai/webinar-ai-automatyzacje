@@ -31,23 +31,55 @@ def _make_user_doc(doc_id: str, status: str = "active", **kwargs) -> MagicMock:
     return doc
 
 
+def _make_chainable_query_mock(docs: list) -> MagicMock:
+    """Create a mock that supports chained Firestore query methods.
+
+    Supports patterns like: collection().order_by().limit().get(),
+    collection().where().order_by().limit().get(), and
+    collection().order_by().start_after().limit().get().
+    """
+    mock = MagicMock()
+
+    # Make all chaining methods return the same mock
+    mock.order_by.return_value = mock
+    mock.limit.return_value = mock
+    mock.start_after.return_value = mock
+    mock.where.return_value = mock
+    mock.get = AsyncMock(return_value=docs)
+
+    return mock
+
+
 class TestGetOverviewStats:
     """Test overview stats aggregation."""
 
     async def test_returns_correct_counts(self):
         """Overview stats correctly count active/trial/blocked users."""
-        mock_db = MagicMock()
         mock_users = [
             _make_user_doc("1", "active"),
             _make_user_doc("2", "active"),
             _make_user_doc("3", "trial"),
             _make_user_doc("4", "blocked"),
         ]
-        mock_db.collection.return_value.get = AsyncMock(return_value=mock_users)
-        # Token usage — empty
-        mock_db.collection.return_value.document.return_value.collection.return_value.get = AsyncMock(
-            return_value=[]
-        )
+
+        mock_db = MagicMock()
+        users_query = _make_chainable_query_mock(mock_users)
+        # First call returns users, second call (for next batch) returns empty
+        users_query.get = AsyncMock(side_effect=[mock_users, []])
+
+        # Token usage subcollection
+        token_query = _make_chainable_query_mock([])
+
+        def collection_router(name: str):
+            if name == "users":
+                return users_query
+            if name == "token_usage":
+                result = MagicMock()
+                result.document.return_value.collection.return_value = token_query
+                return result
+            return MagicMock()
+
+        mock_db.collection.side_effect = collection_router
 
         stats = await get_overview_stats(mock_db)
 
@@ -64,13 +96,15 @@ class TestGetUsersList:
 
     async def test_returns_all_users(self):
         """No filter returns all users."""
-        mock_db = MagicMock()
         mock_users = [
             _make_user_doc("100", "active"),
             _make_user_doc("200", "blocked"),
             _make_user_doc("300", "trial"),
         ]
-        mock_db.collection.return_value.get = AsyncMock(return_value=mock_users)
+
+        mock_db = MagicMock()
+        query_mock = _make_chainable_query_mock(mock_users)
+        mock_db.collection.return_value = query_mock
 
         result = await get_users_list(mock_db)
 
@@ -79,13 +113,11 @@ class TestGetUsersList:
 
     async def test_filter_by_status_blocked(self):
         """Filter by status=blocked returns only blocked users."""
+        mock_blocked = [_make_user_doc("200", "blocked")]
+
         mock_db = MagicMock()
-        mock_users = [
-            _make_user_doc("100", "active"),
-            _make_user_doc("200", "blocked"),
-            _make_user_doc("300", "trial"),
-        ]
-        mock_db.collection.return_value.get = AsyncMock(return_value=mock_users)
+        query_mock = _make_chainable_query_mock(mock_blocked)
+        mock_db.collection.return_value = query_mock
 
         result = await get_users_list(mock_db, status_filter="blocked")
 
@@ -114,12 +146,23 @@ class TestAdminApiEndpoints:
 
     def test_overview_with_read_only_auth_returns_200(self, client):
         """GET /admin/api/overview with read-only admin → 200 with data."""
-        mock_db = MagicMock()
         mock_users = [_make_user_doc("1", "active")]
-        mock_db.collection.return_value.get = AsyncMock(return_value=mock_users)
-        mock_db.collection.return_value.document.return_value.collection.return_value.get = AsyncMock(
-            return_value=[]
-        )
+
+        mock_db = MagicMock()
+        users_query = _make_chainable_query_mock(mock_users)
+        users_query.get = AsyncMock(side_effect=[mock_users, []])
+        token_query = _make_chainable_query_mock([])
+
+        def collection_router(name: str):
+            if name == "users":
+                return users_query
+            if name == "token_usage":
+                result = MagicMock()
+                result.document.return_value.collection.return_value = token_query
+                return result
+            return MagicMock()
+
+        mock_db.collection.side_effect = collection_router
 
         token = create_jwt_token("viewer@example.com", "read-only")
         client.cookies.set(_COOKIE_NAME, token)
@@ -141,11 +184,23 @@ class TestAdminApiEndpoints:
         response = client.patch(
             "/admin/api/users/123/subscription",
             json={"action": "unblock"},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert response.status_code == 403
+
+    def test_patch_subscription_without_csrf_header_returns_403(self, client):
+        """PATCH subscription without X-Requested-With header → 403."""
+        token = create_jwt_token("admin@example.com", "admin")
+        client.cookies.set(_COOKIE_NAME, token)
+
+        response = client.patch(
+            "/admin/api/users/123/subscription",
+            json={"action": "unblock"},
         )
         assert response.status_code == 403
 
     def test_patch_subscription_with_admin_returns_200(self, client):
-        """PATCH subscription with admin role → 200, audit log created."""
+        """PATCH subscription with admin role + CSRF header → 200, audit log created."""
         mock_db = MagicMock()
         mock_doc = MagicMock()
         mock_doc.exists = True
@@ -162,6 +217,7 @@ class TestAdminApiEndpoints:
             response = client.patch(
                 "/admin/api/users/123/subscription",
                 json={"action": "unblock"},
+                headers={"X-Requested-With": "XMLHttpRequest"},
             )
 
         assert response.status_code == 200
@@ -173,12 +229,11 @@ class TestAdminApiEndpoints:
 
     def test_users_filter_by_status(self, client):
         """GET /admin/api/users?status=blocked returns only blocked users."""
+        mock_blocked = [_make_user_doc("200", "blocked")]
+
         mock_db = MagicMock()
-        mock_users = [
-            _make_user_doc("100", "active"),
-            _make_user_doc("200", "blocked"),
-        ]
-        mock_db.collection.return_value.get = AsyncMock(return_value=mock_users)
+        query_mock = _make_chainable_query_mock(mock_blocked)
+        mock_db.collection.return_value = query_mock
 
         token = create_jwt_token("admin@example.com", "admin")
         client.cookies.set(_COOKIE_NAME, token)

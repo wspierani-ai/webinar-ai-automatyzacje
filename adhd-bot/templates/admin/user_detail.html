@@ -104,7 +104,7 @@ function userDetailData(userId) {
             try {
                 const resp = await fetch('/admin/api/users/' + userId + '/subscription', {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     body: JSON.stringify({ action: action, days: 7 })
                 });
                 if (resp.ok) {

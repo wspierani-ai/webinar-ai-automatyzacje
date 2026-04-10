@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urlencode
@@ -19,6 +21,7 @@ import jwt
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from bot.security.rate_limiter import limiter
 from bot.services.firestore_client import get_firestore_client
 
 logger = logging.getLogger(__name__)
@@ -32,6 +35,7 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 _JWT_ALGORITHM = "HS256"
 _JWT_EXPIRY_HOURS = 8
 _COOKIE_NAME = "admin_session"
+_ADMIN_STATE_TTL_MINUTES = 10
 
 
 def _get_jwt_secret() -> str:
@@ -107,12 +111,61 @@ async def _get_google_userinfo(access_token: str) -> Optional[dict]:
     return resp.json()
 
 
+def _generate_admin_state() -> str:
+    """Generate a URL-safe random state token for OAuth CSRF protection."""
+    alphabet = string.ascii_letters + string.digits + "-_"
+    return "".join(secrets.choice(alphabet) for _ in range(32))
+
+
+async def _save_admin_oauth_state(db, state: str) -> None:
+    """Persist admin OAuth state to Firestore with TTL."""
+    now = datetime.now(tz=timezone.utc)
+    expires_at = now + timedelta(minutes=_ADMIN_STATE_TTL_MINUTES)
+    doc_ref = db.collection("admin_oauth_states").document(state)
+    await doc_ref.set({
+        "created_at": now,
+        "expires_at": expires_at,
+    })
+
+
+async def _verify_admin_oauth_state(db, state: str) -> bool:
+    """Verify and consume admin OAuth state token. Returns True if valid."""
+    if not state:
+        return False
+
+    doc_ref = db.collection("admin_oauth_states").document(state)
+    doc = await doc_ref.get()
+
+    if not doc.exists:
+        return False
+
+    data = doc.to_dict()
+    expires_at = data.get("expires_at")
+
+    if expires_at is not None:
+        now = datetime.now(tz=timezone.utc)
+        if hasattr(expires_at, "tzinfo") and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if now > expires_at:
+            await doc_ref.delete()
+            return False
+
+    # Consume state (single-use)
+    await doc_ref.delete()
+    return True
+
+
 @router.get("/login")
+@limiter.limit("100/minute")
 async def admin_login(request: Request) -> RedirectResponse:
-    """Redirect to Google OAuth for admin login."""
+    """Redirect to Google OAuth for admin login with state CSRF token."""
     config = _get_admin_oauth_config()
     service_url = os.environ.get("CLOUD_RUN_SERVICE_URL", "")
     redirect_uri = f"{service_url}/admin/auth/callback"
+
+    db = get_firestore_client()
+    state = _generate_admin_state()
+    await _save_admin_oauth_state(db, state)
 
     params = {
         "client_id": config["client_id"],
@@ -121,18 +174,30 @@ async def admin_login(request: Request) -> RedirectResponse:
         "scope": "openid email profile",
         "access_type": "online",
         "prompt": "select_account",
+        "state": state,
     }
     return RedirectResponse(url=f"{GOOGLE_AUTH_URL}?{urlencode(params)}")
 
 
 @router.get("/auth/callback")
+@limiter.limit("100/minute")
 async def admin_auth_callback(
-    request: Request, code: str = "", error: str = ""
+    request: Request, code: str = "", state: str = "", error: str = ""
 ) -> Response:
     """Handle Google OAuth callback for admin login."""
     if error or not code:
         return HTMLResponse(
             content="<h1>Logowanie nieudane</h1><p>Brak autoryzacji.</p>",
+            status_code=400,
+        )
+
+    # Verify OAuth state token (CSRF protection)
+    db = get_firestore_client()
+    is_valid_state = await _verify_admin_oauth_state(db, state)
+    if not is_valid_state:
+        logger.warning("Admin OAuth callback with invalid/expired state")
+        return HTMLResponse(
+            content="<h1>Logowanie nieudane</h1><p>Nieprawidłowy lub wygasły token autoryzacji.</p>",
             status_code=400,
         )
 
@@ -180,8 +245,7 @@ async def admin_auth_callback(
             status_code=400,
         )
 
-    # Check if email is in admin_users
-    db = get_firestore_client()
+    # Check if email is in admin_users (db already obtained above for state verification)
     admin_doc = await db.collection("admin_users").document(email).get()
 
     if not admin_doc.exists:
@@ -214,7 +278,8 @@ async def admin_auth_callback(
 
 
 @router.get("/logout")
-async def admin_logout() -> RedirectResponse:
+@limiter.limit("100/minute")
+async def admin_logout(request: Request) -> RedirectResponse:
     """Clear admin session cookie and redirect to login."""
     response = RedirectResponse(url="/admin/login", status_code=302)
     response.delete_cookie(key=_COOKIE_NAME)

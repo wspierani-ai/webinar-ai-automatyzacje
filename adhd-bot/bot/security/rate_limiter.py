@@ -43,7 +43,8 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
     )
 
 
-# Decorators for use on route handlers:
-# @limiter.limit("30/minute")  → on webhook routes
-# @limiter.limit("10/minute")  → on OAuth callback
-# @limiter.limit("100/minute") → on admin routes
+# Applied decorators:
+# @limiter.limit("30/minute")  → on /telegram/webhook
+# @limiter.limit("10/minute")  → on /auth/google/callback
+# @limiter.limit("100/minute") → on /admin/* routes
+# /stripe/webhook and /internal/* are unlimited (Stripe IPs / OIDC protected)

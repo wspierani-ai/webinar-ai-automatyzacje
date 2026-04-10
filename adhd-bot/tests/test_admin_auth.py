@@ -23,6 +23,7 @@ from bot.admin.auth import (
     _COOKIE_NAME,
     _JWT_ALGORITHM,
     _get_jwt_secret,
+    _verify_admin_oauth_state,
     create_audit_log,
     create_jwt_token,
     decode_jwt_token,
@@ -88,6 +89,36 @@ class TestAuthCallback:
     def client(self, app):
         return TestClient(app, raise_server_exceptions=False)
 
+    def test_callback_without_state_returns_400(self, client):
+        """Callback without state parameter returns 400."""
+        mock_db = MagicMock()
+
+        with patch("bot.admin.auth.get_firestore_client", return_value=mock_db):
+            response = client.get(
+                "/admin/auth/callback?code=fake-code", follow_redirects=False
+            )
+
+        assert response.status_code == 400
+
+    def test_callback_with_invalid_state_returns_400(self, client):
+        """Callback with invalid/expired state returns 400."""
+        mock_db = MagicMock()
+
+        with (
+            patch("bot.admin.auth.get_firestore_client", return_value=mock_db),
+            patch(
+                "bot.admin.auth._verify_admin_oauth_state",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+        ):
+            response = client.get(
+                "/admin/auth/callback?code=fake-code&state=bad-state",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 400
+
     def test_callback_with_non_admin_email_returns_403(self, client):
         """Email not in admin_users collection returns 403."""
         mock_db = MagicMock()
@@ -100,6 +131,11 @@ class TestAuthCallback:
         with (
             patch("bot.admin.auth.get_firestore_client", return_value=mock_db),
             patch(
+                "bot.admin.auth._verify_admin_oauth_state",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
                 "bot.admin.auth._exchange_code_for_token",
                 new_callable=AsyncMock,
                 return_value={"access_token": "fake-access"},
@@ -111,7 +147,8 @@ class TestAuthCallback:
             ),
         ):
             response = client.get(
-                "/admin/auth/callback?code=fake-code", follow_redirects=False
+                "/admin/auth/callback?code=fake-code&state=valid-state",
+                follow_redirects=False,
             )
 
         assert response.status_code == 403
@@ -130,6 +167,11 @@ class TestAuthCallback:
         with (
             patch("bot.admin.auth.get_firestore_client", return_value=mock_db),
             patch(
+                "bot.admin.auth._verify_admin_oauth_state",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
                 "bot.admin.auth._exchange_code_for_token",
                 new_callable=AsyncMock,
                 return_value={"access_token": "fake-access"},
@@ -141,7 +183,8 @@ class TestAuthCallback:
             ),
         ):
             response = client.get(
-                "/admin/auth/callback?code=fake-code", follow_redirects=False
+                "/admin/auth/callback?code=fake-code&state=valid-state",
+                follow_redirects=False,
             )
 
         assert response.status_code == 302
@@ -197,11 +240,21 @@ class TestRequireAdmin:
         response = client.get("/admin/test-write")
         assert response.status_code == 403
 
-    def test_require_admin_write_with_admin_role_returns_200(self, client):
-        """Admin role can access write endpoint."""
+    def test_require_admin_write_without_csrf_header_returns_403(self, client):
+        """Admin role without X-Requested-With header → 403."""
         token = create_jwt_token("admin@example.com", "admin")
         client.cookies.set(_COOKIE_NAME, token)
         response = client.get("/admin/test-write")
+        assert response.status_code == 403
+
+    def test_require_admin_write_with_admin_role_returns_200(self, client):
+        """Admin role with CSRF header can access write endpoint."""
+        token = create_jwt_token("admin@example.com", "admin")
+        client.cookies.set(_COOKIE_NAME, token)
+        response = client.get(
+            "/admin/test-write",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
         assert response.status_code == 200
         assert response.json()["email"] == "admin@example.com"
 

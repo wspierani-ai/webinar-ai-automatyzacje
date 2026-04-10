@@ -20,6 +20,7 @@ from typing import Optional
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from bot.security.rate_limiter import limiter
 from bot.services.firestore_client import get_firestore_client
 from bot.services.google_auth import (
     build_oauth_url,
@@ -103,6 +104,7 @@ async def handle_disconnect_google(message: dict, db) -> None:
 
 
 @router.get("/auth/google/callback")
+@limiter.limit("10/minute")
 async def oauth_callback(
     request: Request,
     code: Optional[str] = Query(default=None),

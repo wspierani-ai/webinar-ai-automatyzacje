@@ -10,14 +10,14 @@ Handles:
 
 from __future__ import annotations
 
-import base64
-import json
 import logging
 import os
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+from bot.security.encryption import decrypt, encrypt
 
 logger = logging.getLogger(__name__)
 
@@ -41,58 +41,14 @@ def _nanoid(length: int = 21) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
-def _get_encryption_key() -> bytes:
-    """Return AES-256 key (32 bytes) from env var GOOGLE_ENCRYPTION_KEY (base64).
-
-    Falls back to a zeroed key in test environments.  In production this key
-    MUST be loaded from Secret Manager.
-    """
-    raw = os.environ.get("GOOGLE_ENCRYPTION_KEY", "")
-    if raw:
-        return base64.b64decode(raw)
-    # Test / dev fallback — do NOT use in production
-    return b"\x00" * 32
-
-
 def _encrypt_token(plaintext: str) -> str:
-    """Encrypt token string using AES-256 GCM.
-
-    Returns a base64-encoded JSON blob: {"nonce": "...", "ct": "..."}.
-    """
-    try:
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # type: ignore
-
-        key = _get_encryption_key()
-        aesgcm = AESGCM(key)
-        nonce = os.urandom(12)
-        ct = aesgcm.encrypt(nonce, plaintext.encode(), None)
-        blob = json.dumps(
-            {
-                "nonce": base64.b64encode(nonce).decode(),
-                "ct": base64.b64encode(ct).decode(),
-            }
-        )
-        return base64.b64encode(blob.encode()).decode()
-    except ImportError:
-        # cryptography not installed — store as-is (tests / dev only)
-        logger.warning("cryptography package not available; storing token unencrypted")
-        return base64.b64encode(plaintext.encode()).decode()
+    """Encrypt token string. Delegates to bot.security.encryption."""
+    return encrypt(plaintext)
 
 
 def _decrypt_token(encrypted: str) -> str:
-    """Decrypt token string encrypted by _encrypt_token."""
-    try:
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # type: ignore
-
-        key = _get_encryption_key()
-        blob = json.loads(base64.b64decode(encrypted).decode())
-        nonce = base64.b64decode(blob["nonce"])
-        ct = base64.b64decode(blob["ct"])
-        aesgcm = AESGCM(key)
-        return aesgcm.decrypt(nonce, ct, None).decode()
-    except (ImportError, KeyError, ValueError):
-        # Fallback: assume base64-only encoding (dev / tests)
-        return base64.b64decode(encrypted).decode()
+    """Decrypt token string. Delegates to bot.security.encryption."""
+    return decrypt(encrypted)
 
 
 async def generate_oauth_state(db, telegram_user_id: int) -> str:

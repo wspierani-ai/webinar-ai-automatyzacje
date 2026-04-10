@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from bot.services.deduplication import is_duplicate, mark_processed
 from bot.services.firestore_client import get_firestore_client
+from bot.security.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ def _is_stale(message_date: int | None) -> bool:
 
 
 @router.post("/telegram/webhook")
+@limiter.limit("30/minute")
 async def telegram_webhook(
     request: Request,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),

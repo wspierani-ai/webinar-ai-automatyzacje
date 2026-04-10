@@ -17,6 +17,54 @@ logger = logging.getLogger(__name__)
 SUBSCRIPTION_PRICE_PLN = 29.99
 
 
+_STATS_BATCH_SIZE = 500
+
+
+async def _count_users_by_status(db) -> dict:
+    """Count users by subscription status using batched reads.
+
+    Reads in batches of _STATS_BATCH_SIZE to avoid loading all users at once.
+    Returns dict with total, active, trial, blocked counts.
+    """
+    users_ref = db.collection("users")
+    total = 0
+    active = 0
+    trial = 0
+    blocked = 0
+
+    query = users_ref.order_by("__name__").limit(_STATS_BATCH_SIZE)
+    last_doc = None
+
+    while True:
+        if last_doc is not None:
+            query = (
+                users_ref.order_by("__name__")
+                .start_after(last_doc)
+                .limit(_STATS_BATCH_SIZE)
+            )
+
+        batch = await query.get()
+        if not batch:
+            break
+
+        for doc in batch:
+            total += 1
+            data = doc.to_dict()
+            status = data.get("subscription_status", "")
+            if status == "active":
+                active += 1
+            elif status == "trial":
+                trial += 1
+            elif status == "blocked":
+                blocked += 1
+
+        if len(batch) < _STATS_BATCH_SIZE:
+            break
+        last_doc = batch[-1]
+
+    return {"total": total, "active": active, "trial": trial, "blocked": blocked}
+
+
 async def get_overview_stats(db) -> dict:
     """Aggregate overview stats for the admin dashboard.
 
@@ -24,25 +72,12 @@ async def get_overview_stats(db) -> dict:
     blocked_users, mrr_pln, arr_pln, trial_conversion_rate,
     total_gemini_cost_pln_this_month, churn_rate_last_30d.
     """
-    users_ref = db.collection("users")
-    users_snapshot = await users_ref.get()
-
-    total_users = 0
-    active_count = 0
-    trial_count = 0
-    blocked_count = 0
+    counts = await _count_users_by_status(db)
+    total_users = counts["total"]
+    active_count = counts["active"]
+    trial_count = counts["trial"]
+    blocked_count = counts["blocked"]
     now = datetime.now(tz=timezone.utc)
-
-    for doc in users_snapshot:
-        total_users += 1
-        data = doc.to_dict()
-        status = data.get("subscription_status", "")
-        if status == "active":
-            active_count += 1
-        elif status == "trial":
-            trial_count += 1
-        elif status == "blocked":
-            blocked_count += 1
 
     mrr_pln = active_count * SUBSCRIPTION_PRICE_PLN
     arr_pln = mrr_pln * 12
@@ -54,7 +89,6 @@ async def get_overview_stats(db) -> dict:
     )
 
     # Gemini cost this month
-    month_key = now.strftime("%Y-%m")
     total_gemini_cost = 0.0
     try:
         # Sum across all days of current month
@@ -65,6 +99,7 @@ async def get_overview_stats(db) -> dict:
                 db.collection("token_usage")
                 .document(date_key)
                 .collection("users")
+                .limit(_STATS_BATCH_SIZE)
                 .get()
             )
             for usage_doc in users_usage:
@@ -96,46 +131,83 @@ async def get_users_list(
     search: Optional[str] = None,
     page: int = 1,
     limit: int = 50,
+    cursor_after: Optional[str] = None,
 ) -> dict:
     """Get paginated list of users with optional filters.
 
+    Uses Firestore .where() for status filtering and .limit() for pagination.
     Returns dict with: users (list), total, page, limit, pages.
     """
     users_ref = db.collection("users")
-    all_docs = await users_ref.get()
 
-    users = []
-    for doc in all_docs:
-        data = doc.to_dict()
-        user_status = data.get("subscription_status", "")
+    # Build query with server-side filtering when possible
+    query = users_ref.order_by("__name__")
+    if status_filter:
+        query = users_ref.where("subscription_status", "==", status_filter).order_by("__name__")
 
-        if status_filter and user_status != status_filter:
-            continue
+    # For search by user_id (document ID), we use the document directly
+    if search:
+        # Search is by user_id (document ID) — use exact or prefix match
+        # Firestore doesn't support LIKE, so we fetch a limited batch and filter client-side
+        fetch_limit = limit * page + limit  # fetch enough to paginate
+        docs = await query.limit(fetch_limit).get()
+        users = []
+        for doc in docs:
+            if search not in doc.id:
+                continue
+            data = doc.to_dict()
+            users.append(_format_user_doc(doc, data))
+        total = len(users)
+        pages = max(1, (total + limit - 1) // limit)
+        start = (page - 1) * limit
+        end = start + limit
+        return {
+            "users": users[start:end],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": pages,
+        }
 
-        user_id = doc.id
-        if search and search not in user_id:
-            continue
-
-        users.append({
-            "user_id": user_id,
-            "created_at": _format_datetime(data.get("created_at")),
-            "subscription_status": user_status,
-            "trial_ends_at": _format_datetime(data.get("trial_ends_at")),
-            "timezone": data.get("timezone", ""),
-            "google_connected": data.get("google_connected", False),
-        })
-
-    total = len(users)
+    # Count total for pagination (limited scan)
+    count_query = users_ref
+    if status_filter:
+        count_query = users_ref.where("subscription_status", "==", status_filter)
+    count_docs = await count_query.order_by("__name__").limit(10000).get()
+    total = len(count_docs)
     pages = max(1, (total + limit - 1) // limit)
-    start = (page - 1) * limit
-    end = start + limit
+
+    # Skip to the right page using cursor-based pagination
+    skip = (page - 1) * limit
+    if skip > 0:
+        skip_docs = await query.limit(skip).get()
+        if skip_docs:
+            query = query.start_after(skip_docs[-1])
+
+    docs = await query.limit(limit).get()
+    users = []
+    for doc in docs:
+        data = doc.to_dict()
+        users.append(_format_user_doc(doc, data))
 
     return {
-        "users": users[start:end],
+        "users": users,
         "total": total,
         "page": page,
         "limit": limit,
         "pages": pages,
+    }
+
+
+def _format_user_doc(doc, data: dict) -> dict:
+    """Format a user Firestore document into API-compatible dict."""
+    return {
+        "user_id": doc.id,
+        "created_at": _format_datetime(data.get("created_at")),
+        "subscription_status": data.get("subscription_status", ""),
+        "trial_ends_at": _format_datetime(data.get("trial_ends_at")),
+        "timezone": data.get("timezone", ""),
+        "google_connected": data.get("google_connected", False),
     }
 
 

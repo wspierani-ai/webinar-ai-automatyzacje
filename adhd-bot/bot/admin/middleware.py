@@ -73,12 +73,19 @@ async def require_admin_write(request: Request) -> AdminSession:
     """FastAPI dependency: require admin role with write access.
 
     Returns AdminSession on success, 403 for read-only, redirect for unauthenticated.
+    Validates X-Requested-With header for CSRF protection on write operations.
     """
     session = _get_session_from_request(request)
     if session is None:
         raise HTTPException(status_code=302, headers={"Location": "/admin/login"})
     if session.is_read_only:
         raise HTTPException(status_code=403, detail="Write access required")
+
+    # CSRF protection: require custom header on write operations
+    requested_with = request.headers.get("x-requested-with", "")
+    if requested_with != "XMLHttpRequest":
+        raise HTTPException(status_code=403, detail="Missing CSRF header")
+
     return session
 
 

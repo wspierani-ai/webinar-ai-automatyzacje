@@ -23,6 +23,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from bot.admin.auth import create_audit_log
 from bot.admin.middleware import AdminSession, require_admin, require_admin_write
 from bot.admin.queries import get_overview_stats, get_user_detail, get_users_list
+from bot.security.rate_limiter import limiter
 from bot.services.firestore_client import get_firestore_client
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ def _get_templates():
 
 
 @router.get("", response_class=HTMLResponse)
+@limiter.limit("100/minute")
 async def dashboard_page(
     request: Request,
     session: AdminSession = Depends(require_admin),
@@ -58,6 +60,7 @@ async def dashboard_page(
 
 
 @router.get("/users", response_class=HTMLResponse)
+@limiter.limit("100/minute")
 async def users_page(
     request: Request,
     session: AdminSession = Depends(require_admin),
@@ -70,6 +73,7 @@ async def users_page(
 
 
 @router.get("/users/{user_id}", response_class=HTMLResponse)
+@limiter.limit("100/minute")
 async def user_detail_page(
     user_id: str,
     request: Request,
@@ -90,7 +94,9 @@ async def user_detail_page(
 
 
 @router.get("/api/overview")
+@limiter.limit("100/minute")
 async def api_overview(
+    request: Request,
     session: AdminSession = Depends(require_admin),
 ) -> JSONResponse:
     """Return overview stats as JSON."""
@@ -100,7 +106,9 @@ async def api_overview(
 
 
 @router.get("/api/users")
+@limiter.limit("100/minute")
 async def api_users(
+    request: Request,
     status: Optional[str] = None,
     search: Optional[str] = None,
     page: int = 1,
@@ -116,8 +124,10 @@ async def api_users(
 
 
 @router.get("/api/users/{user_id}")
+@limiter.limit("100/minute")
 async def api_user_detail(
     user_id: str,
+    request: Request,
     session: AdminSession = Depends(require_admin),
 ) -> JSONResponse:
     """Return user detail as JSON."""
@@ -129,6 +139,7 @@ async def api_user_detail(
 
 
 @router.patch("/api/users/{user_id}/subscription")
+@limiter.limit("100/minute")
 async def api_update_subscription(
     user_id: str,
     request: Request,
