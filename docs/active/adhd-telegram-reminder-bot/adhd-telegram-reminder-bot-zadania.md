@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Zadania
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09 (Faza 5 zaimplementowana)
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 6 zaimplementowana)
 
 ---
 
@@ -459,22 +459,39 @@ last_updated: 2026-04-09
 
 ---
 
+## Do poprawy po review fazy 5
+
+- [x] 🟠 [important] **bot/admin/middleware.py:84-87** — CSRF protection: `X-Requested-With: XMLHttpRequest` check w `require_admin_write` ✅ zweryfikowane cykl 2
+- [x] 🟠 [important] **bot/admin/auth.py:114-155,160-202** — Admin OAuth state token z TTL 10 min, single-use, `admin_oauth_states/{state}` ✅ zweryfikowane cykl 2
+- [x] 🟠 [important] **bot/webhook.py:51 + google_oauth_handler.py:107 + admin/router.py:50,63,76,97,109,127,142** — Rate limiter aktywny: webhook 30/min, OAuth 10/min, admin 100/min ✅ zweryfikowane cykl 2
+- [x] 🟠 [important] **bot/services/google_auth.py:20,44-51** — `_encrypt_token`/`_decrypt_token` deleguja do `bot.security.encryption.encrypt()`/`decrypt()` ✅ zweryfikowane cykl 2
+- [x] 🟠 [important] **bot/admin/queries.py:20-65,128-199** — Cursor-based pagination + batched reads (`_STATS_BATCH_SIZE=500`), server-side `.where()` + `.limit()` ✅ zweryfikowane cykl 2
+- [ ] 🟡 [nit] **bot/admin/queries.py:109,244,270** — `except Exception` zbyt szeroki; zawęź do `google.cloud.exceptions.GoogleCloudError`, `ValueError`
+- [ ] 🟡 [nit] **bot/admin/auth.py:211,228,309** — `except Exception` zbyt szeroki; zawęź do `httpx.HTTPError`, `httpx.TimeoutException`, `ValueError`
+- [ ] 🟡 [nit] **bot/handlers/internal_triggers.py + cleanup_handler.py + gtasks_polling_handler.py** — `_verify_oidc_token` nadal zduplikowana w 3 plikach (carryover z Faz 1-4); wyciągnij do `bot/security/oidc.py`
+- [ ] 🟡 [nit] **8 plików handler/service** — `TELEGRAM_BASE_URL` zduplikowany w 8 plikach (carryover z Fazy 1, eskalacja); wyciągnij do `bot/config.py`
+- [ ] 🟡 [nit] **bot/admin/router.py:170** — `days` parameter w `extend_trial_days` nie walidowany (typ, zakres); dodaj `isinstance(days, int) and 1 <= days <= 365`
+- [ ] 🟡 [nit] **bot/admin/queries.py:230** — `int(user_id)` może rzucić `ValueError` dla nie-numerycznego ID; łapany przez generyczny `except Exception` zamiast zwrócić 400
+- [ ] 🟡 [nit] **tests/test_admin_auth.py** — Brak testu weryfikującego że GET na `/admin/*` NIE tworzy audit log entry (negative case middleware)
+
+---
+
 ## Faza 6 — Checklista + RODO (Units 19-21)
 
 ### Unit 19: Checklist Template Management
 
-- [ ] Stwórz `adhd-bot/bot/models/checklist.py` (`ChecklistTemplate`, `ChecklistSession` dataclasses)
-- [ ] Stwórz `adhd-bot/bot/handlers/checklist_command_handlers.py` (`/new_checklist`, `/checklists`, `/evening`)
-- [ ] Stwórz `adhd-bot/bot/services/checklist_ai.py` (`suggest_items` przez Gemini)
-- [ ] Stwórz `adhd-bot/tests/test_checklist_templates.py`
-- [ ] Zaimplementuj max 12 itemów per szablon (walidacja)
-- [ ] Zaimplementuj auto-zapis szablonu po pierwszym użyciu
-- [ ] Test: `/new_checklist Siłownia` → Gemini sugeruje ≤8 itemów
-- [ ] Test: Szablon z >12 itemami → błąd walidacji
-- [ ] Test: `/checklists` dla usera bez szablonów → "Nie masz jeszcze żadnych list"
-- [ ] Test: `[Usuń]` szablon → usunięty z Firestore
-- [ ] Test: `/evening 20:30` → `user.evening_time = "20:30"`
-- [ ] Test: `/evening 25:00` → błąd walidacji
+- [x] Stwórz `adhd-bot/bot/models/checklist.py` (`ChecklistTemplate`, `ChecklistSession` dataclasses)
+- [x] Stwórz `adhd-bot/bot/handlers/checklist_command_handlers.py` (`/new_checklist`, `/checklists`, `/evening`)
+- [x] Stwórz `adhd-bot/bot/services/checklist_ai.py` (`suggest_items` przez Gemini)
+- [x] Stwórz `adhd-bot/tests/test_checklist_templates.py`
+- [x] Zaimplementuj max 12 itemów per szablon (walidacja)
+- [x] Zaimplementuj auto-zapis szablonu po pierwszym użyciu
+- [x] Test: `/new_checklist Siłownia` → Gemini sugeruje ≤8 itemów
+- [x] Test: Szablon z >12 itemami → błąd walidacji
+- [x] Test: `/checklists` dla usera bez szablonów → "Nie masz jeszcze żadnych list"
+- [x] Test: `[Usuń]` szablon → usunięty z Firestore
+- [x] Test: `/evening 20:30` → `user.evening_time = "20:30"`
+- [x] Test: `/evening 25:00` → błąd walidacji
 - [ ] Weryfikacja: Pełny flow tworzenia szablonu → widoczny w `/checklists`
 - [ ] Weryfikacja: AI sugestie: sensowne itemy dla "Siłownia", "Praca", "Lotnisko"
 
@@ -482,20 +499,20 @@ last_updated: 2026-04-09
 
 ### Unit 20: Checklist Session Flow (wieczorny + poranny reminder, item callbacks)
 
-- [ ] Stwórz `adhd-bot/bot/services/checklist_session.py` (`ChecklistSession.create`)
-- [ ] Stwórz `adhd-bot/bot/handlers/checklist_callbacks.py` (item callbacks + snooze listy)
-- [ ] Modyfikuj `adhd-bot/bot/handlers/internal_triggers.py` (trigger-checklist-evening, trigger-checklist-morning)
-- [ ] Modyfikuj `adhd-bot/bot/handlers/message_handlers.py` (integracja Gemini event detection)
-- [ ] Stwórz `adhd-bot/tests/test_checklist_session.py`
-- [ ] Dodaj `event_type: "task" | "event_with_preparation"` do `ParsedTask` (modyfikacja Unit 4)
-- [ ] Zaimplementuj snapshot itemów przy tworzeniu sesji (niezależny od edycji szablonu)
-- [ ] Test: Event z pasującym szablonem → bot proponuje szablon bezpośrednio
-- [ ] Test: Event bez szablonu → bot pyta "czy coś zabrać?"
-- [ ] Test: Sesja tworzona ze snapshot'em itemów (edycja szablonu po tym nie wpływa)
-- [ ] Test: trigger-checklist-morning gdy wszystkie zaznaczone → wiadomość gratulacyjna bez listy
-- [ ] Test: trigger-checklist-morning gdy 3/5 zaznaczonych → tylko 2 nieodznaczone z buttonami
-- [ ] Test: Kliknięcie ostatniego itemu → auto-zamknięcie z komunikatem gratulacyjnym
-- [ ] Test: Snooze całej listy → nowy Cloud Task za 30 min
+- [x] Stwórz `adhd-bot/bot/services/checklist_session.py` (`ChecklistSession.create`)
+- [x] Stwórz `adhd-bot/bot/handlers/checklist_callbacks.py` (item callbacks + snooze listy)
+- [x] Modyfikuj `adhd-bot/bot/handlers/internal_triggers.py` (trigger-checklist-evening, trigger-checklist-morning)
+- [x] Modyfikuj `adhd-bot/bot/handlers/message_handlers.py` (integracja Gemini event detection)
+- [x] Stwórz `adhd-bot/tests/test_checklist_session.py`
+- [x] Dodaj `event_type: "task" | "event_with_preparation"` do `ParsedTask` (modyfikacja Unit 4)
+- [x] Zaimplementuj snapshot itemów przy tworzeniu sesji (niezależny od edycji szablonu)
+- [x] Test: Event z pasującym szablonem → bot proponuje szablon bezpośrednio
+- [x] Test: Event bez szablonu → bot pyta "czy coś zabrać?"
+- [x] Test: Sesja tworzona ze snapshot'em itemów (edycja szablonu po tym nie wpływa)
+- [x] Test: trigger-checklist-morning gdy wszystkie zaznaczone → wiadomość gratulacyjna bez listy
+- [x] Test: trigger-checklist-morning gdy 3/5 zaznaczonych → tylko 2 nieodznaczone z buttonami
+- [x] Test: Kliknięcie ostatniego itemu → auto-zamknięcie z komunikatem gratulacyjnym
+- [x] Test: Snooze całej listy → nowy Cloud Task za 30 min
 - [ ] Weryfikacja: Napisz "jutro siłownia o 7" → bot proponuje listę → o 21:00 wieczorna wiadomość → o 7:00 tylko nieodznaczone
 - [ ] Weryfikacja: Kliknij wszystkie itemy wieczorem → rano gratulacje bez listy
 
@@ -503,17 +520,17 @@ last_updated: 2026-04-09
 
 ### Unit 21: RODO — /delete_my_data + Polityka Prywatności
 
-- [ ] Modyfikuj `adhd-bot/bot/handlers/command_handlers.py` (dodaj `/delete_my_data` z potwierdzeniem)
-- [ ] Stwórz `adhd-bot/templates/privacy_policy.html` (statyczna strona RODO)
-- [ ] Stwórz `adhd-bot/tests/test_gdpr.py`
-- [ ] Zaimplementuj `GET /privacy` (publiczny, bez auth)
-- [ ] Zaimplementuj kaskadowe usuwanie: tasks, token_usage, checklist_templates, checklist_sessions, processed_updates, users document
-- [ ] Zaimplementuj cancel Stripe subscription przy delete
-- [ ] Zaimplementuj revoke Google token przy delete
-- [ ] Test: `/delete_my_data` bez potwierdzenia → brak usunięcia
-- [ ] Test: `/delete_my_data` z potwierdzeniem → wszystkie kolekcje usera usunięte z Firestore
-- [ ] Test: `/delete_my_data` anuluje subskrypcję Stripe jeśli istnieje
-- [ ] Test: `/delete_my_data` revoke Google token jeśli połączone
-- [ ] Test: `GET /privacy` zwraca 200 z HTML
+- [x] Modyfikuj `adhd-bot/bot/handlers/command_handlers.py` (dodaj `/delete_my_data` z potwierdzeniem)
+- [x] Stwórz `adhd-bot/templates/privacy_policy.html` (statyczna strona RODO)
+- [x] Stwórz `adhd-bot/tests/test_gdpr.py`
+- [x] Zaimplementuj `GET /privacy` (publiczny, bez auth)
+- [x] Zaimplementuj kaskadowe usuwanie: tasks, token_usage, checklist_templates, checklist_sessions, processed_updates, users document
+- [x] Zaimplementuj cancel Stripe subscription przy delete
+- [x] Zaimplementuj revoke Google token przy delete
+- [x] Test: `/delete_my_data` bez potwierdzenia → brak usunięcia
+- [x] Test: `/delete_my_data` z potwierdzeniem → wszystkie kolekcje usera usunięte z Firestore
+- [x] Test: `/delete_my_data` anuluje subskrypcję Stripe jeśli istnieje
+- [x] Test: `/delete_my_data` revoke Google token jeśli połączone
+- [x] Test: `GET /privacy` zwraca 200 z HTML
 - [ ] Weryfikacja: Po `/delete_my_data` brak dokumentów usera w żadnej kolekcji Firestore
 - [ ] Weryfikacja: `/privacy` dostępne publicznie bez autentykacji

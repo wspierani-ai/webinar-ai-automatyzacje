@@ -9,7 +9,7 @@ last_updated: 2026-04-09
 # ADHD Reminder Bot — Kontekst techniczny
 
 **Branch:** `feature/adhd-telegram-reminder-bot`
-**Ostatnia aktualizacja:** 2026-04-09 (Faza 5 zaimplementowana)
+**Ostatnia aktualizacja:** 2026-04-09 (Faza 6 zaimplementowana)
 
 ## Powiązane pliki źródłowe
 
@@ -602,7 +602,124 @@ Wszystkie naprawki z cyklu 1 zweryfikowane:
 - "Przenieś wszystkie sekrety do Secret Manager" — wymaga GCP access
 - "Modyfikuj google_auth.py (użyj encryption.py)" — google_auth.py już ma własne AES-256 szyfrowanie, migration do security/encryption.py jest opcjonalna
 
-## Źródła
+## Review Fazy 5 (2026-04-09)
+
+**Wynik:** KONTYNUUJ Z ZASTRZEŻENIAMI — P1=0, P2=5, P3=7
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-5.md`
+
+### P2 — wymagają naprawy
+
+- `admin/router.py:131-180` — Brak CSRF protection na PATCH endpoint; SameSite=lax nie blokuje PATCH z JS
+- `admin/auth.py:110-125` — Admin OAuth bez state parameter (login CSRF); niespójność z user OAuth
+- `security/rate_limiter.py:46-49` — Rate limiter zarejestrowany w main.py ale dekoratory @limiter.limit() zakomentowane (żaden endpoint nie jest ograniczony)
+- `services/google_auth.py:57-95` — Duplikacja AES-256-GCM encryption zamiast użycia security/encryption.py (plan Unit 18 wymaga migracji)
+- `admin/queries.py:27-29,104-106` — Full table scan na users collection bez paginacji/limit (scalability)
+
+### Kluczowe wnioski
+
+Faza 5 ma solidne fundamenty: JWT session management, role enforcement, audit log, security headers, encryption round-trip. Główne gaps to brak aktywacji rate limitera (kod istnieje, nie jest podpięty), CSRF na admin write endpoints, i duplikacja krypto kodu. Performance queries wymagają refaktoru przed skalą >1000 userów.
+
+**Dobre wzorce potwierdzone:**
+- `asyncio.create_task()` dla fire-and-forget token tracking — nie blokuje parsera
+- `_make_increment()` z TESTING guard — umożliwia testowanie bez Firestore transforms
+- HttpOnly + Secure + SameSite cookie z JWT — prawidłowy session management
+- `require_admin_write` jako FastAPI Depends — czysty RBAC pattern
+- AdminAuditMiddleware logujący POST/PATCH/DELETE — prawidłowa granulacja
+- Firestore rules deny all — wymuszenie Server SDK only access
+- SecurityHeadersMiddleware na wszystkich routes — nie tylko admin
+
+**Kontekst do migracji google_auth.py → security/encryption.py:**
+- `google_auth.py` ma `_encrypt_token`/`_decrypt_token` (linie 57-95) — identyczna logika AES-256-GCM
+- `security/encryption.py` ma `encrypt()`/`decrypt()` — ten sam algorytm, ale z dodatkowym KMS path
+- Migracja wymaga: zamień `_encrypt_token(x)` na `encrypt(x)` i `_decrypt_token(x)` na `decrypt(x)`, usuń lokalne crypto funkcje, zaktualizuj testy
+
+## Review Fazy 5 — re-run cykl 2 (weryfikacja naprawy P2) (2026-04-09)
+
+**Wynik:** ✅ GOTOWE DO KONTYNUACJI — P1=0, P2=0, P3=9
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-5.md`
+
+### P2 z cyklu 1 — naprawione ✅
+
+- `admin/middleware.py:84-87` — CSRF protection przez `X-Requested-With: XMLHttpRequest` check w `require_admin_write` — ✅ ZWERYFIKOWANE
+  - Dashboard fetch calls w `user_detail.html:107` wysylaja header
+  - Testy `test_admin_auth.py:244` i `test_admin_queries.py:192` weryfikuja odrzucenie
+- `admin/auth.py:114-155,160-202` — Admin OAuth state token: 32-char nonce, Firestore `admin_oauth_states/{state}`, TTL 10 min, single-use delete — ✅ ZWERYFIKOWANE
+  - Wzorzec spójny z user OAuth w `google_auth.py`
+- Rate limiter aktywny na endpointach: webhook `30/min`, OAuth `10/min`, admin `100/min` — ✅ ZWERYFIKOWANE
+  - `webhook.py:51`, `google_oauth_handler.py:107`, `admin/router.py` (7 endpoints), `admin/auth.py` (3 endpoints)
+- `services/google_auth.py:20,44-51` — `_encrypt_token`/`_decrypt_token` teraz deleguja do `bot.security.encryption.encrypt()`/`decrypt()` — ✅ ZWERYFIKOWANE
+  - Zero duplikacji logiki krypto
+- `admin/queries.py:20-65,128-199` — Cursor-based pagination + batched reads z `_STATS_BATCH_SIZE=500`, server-side `.where()` + `.limit()` — ✅ ZWERYFIKOWANE
+  - Brak nieograniczonego `await users_ref.get()`
+
+### Lacznie naprawione P2 (5/5)
+- CSRF protection (X-Requested-With header) — ✅
+- Admin OAuth state token (CSRF) — ✅
+- Rate limiter aktywny na endpointach — ✅
+- google_auth.py deleguje do security/encryption.py — ✅
+- Cursor-based pagination + batched reads — ✅
+
+### Pozostale P3 (nieblokujace — do rozważenia w kolejnej fazie)
+- `except Exception` zbyt szeroki w queries.py (3 miejsca) i auth.py (3 miejsca)
+- `_verify_oidc_token` zduplikowana w 3 plikach — wyciagnac do `bot/security/oidc.py`
+- `TELEGRAM_BASE_URL` w 8 plikach — wyciagnac do `bot/config.py`
+- `days` parameter bez walidacji typu/zakresu w router.py
+- `int(user_id)` bez explicit ValueError handling w queries.py
+- Brak testu negative case dla audit middleware (GET)
+- Count query `.limit(10000)` — Firestore count aggregation bylby lepszy przy skali
+- Token usage per-day iteration (do 31 queries) — pre-aggregowany summary bylby lepszy
+
+### Kluczowe wnioski
+
+Faza 5 jest gotowa do kontynuacji. Wszystkie 5 P2 naprawione poprawnie. Security jest solidna: CSRF protection, OAuth state tokens, aktywny rate limiting, jeden modul kryptograficzny. Performance queries sa paginowane i nie laduja pelnych kolekcji. 249 testow przechodzi bez regresji.
+
+---
+
+## Faza 6 — Checklista + RODO (Units 19-21) — 2026-04-09
+
+### Zmiany wprowadzone
+
+**Unit 19 — Checklist Template Management:**
+- Nowy model: `bot/models/checklist.py` — `ChecklistTemplate`, `ChecklistSession`, `ChecklistItem` dataclasses
+- Nowy handler: `bot/handlers/checklist_command_handlers.py` — `/new_checklist`, `/checklists`, `/evening`
+- Nowy serwis: `bot/services/checklist_ai.py` — Gemini AI sugestie itemow checklisty
+- Nowe pole: `User.evening_time` (HH:MM) do ustawiania wieczornego przypomnienia
+- Walidacja max 12 itemow per szablon
+- 12 testow w `tests/test_checklist_templates.py`
+
+**Unit 20 — Checklist Session Flow:**
+- Nowy serwis: `bot/services/checklist_session.py` — tworzenie sesji ze snapshotem itemow
+- Nowy handler: `bot/handlers/checklist_callbacks.py` — callback dla odznaczania itemow i snooze
+- Nowe endpointy: `/internal/trigger-checklist-evening` i `/internal/trigger-checklist-morning` w internal_triggers.py
+- Nowe pole: `ParsedTask.event_type` ("task" | "event_with_preparation") w ai_parser.py
+- Integracja event detection w message_handlers.py — matching templatew
+- Nowa funkcja: `schedule_checklist_trigger` w scheduler.py
+- 11 testow w `tests/test_checklist_session.py`
+
+**Unit 21 — RODO:**
+- Nowy handler: `bot/handlers/gdpr_handler.py` — kaskadowe usuwanie danych usera
+- Nowy endpoint: `GET /privacy` w main.py — publiczna strona polityki prywatnosci
+- Nowy template: `templates/privacy_policy.html`
+- Komenda `/delete_my_data` z potwierdzeniem (callback buttons)
+- Kaskadowe usuwanie: tasks, token_usage, checklist_templates, checklist_sessions, processed_updates, user document
+- Cancel Stripe subscription + revoke Google token przy delete
+- 9 testow w `tests/test_gdpr.py`
+
+### Decyzje
+
+1. `evening_time` dodane do User model jako Optional[str] (HH:MM) — domyslnie None, ustawiane przez /evening
+2. Checklist Cloud Tasks uzywa istniejacego queue `reminders` zamiast tworzenia nowego
+3. Event detection przez nowe pole `event_type` w ParsedTask — Gemini klasyfikuje wiadomosci
+4. GDPR cascade delete jest best-effort — bledy w usuwaniu poszczegolnych kolekcji sa logowane ale nie blokuja procesu
+5. Privacy policy jako statyczny HTML serwowany przez FastAPI (bez szablonu Jinja2)
+
+### Stan testow
+
+- 249 istniejacych testow: PASS (brak regresji)
+- 30 nowych testow: PASS
+- Razem: 279 testow PASS
+
+## Zrodla
 
 - Requirements doc: `docs/dev-brainstorms/2026-04-09-adhd-reminder-bot-requirements.md`
 - Plan techniczny: `docs/plans/2026-04-09-001-feat-adhd-telegram-reminder-bot-plan.md`

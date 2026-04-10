@@ -334,6 +334,16 @@ async def handle_reject_callback(
 
 async def dispatch_callback(callback_query: dict, db) -> None:
     """Route callback_query to appropriate handler based on callback_data."""
+    from bot.handlers.checklist_callbacks import (
+        handle_checklist_item_callback,
+        handle_checklist_snooze_callback,
+    )
+    from bot.handlers.checklist_command_handlers import handle_checklist_delete_callback
+    from bot.handlers.gdpr_handler import (
+        handle_gdpr_cancel_callback,
+        handle_gdpr_confirm_callback,
+    )
+
     data = callback_query.get("data", "")
     parts = data.split(":", maxsplit=2)
     action = parts[0]
@@ -348,5 +358,15 @@ async def dispatch_callback(callback_query: dict, db) -> None:
         await handle_done_callback(callback_query, parts[1], db)
     elif action == "reject" and len(parts) == 2:
         await handle_reject_callback(callback_query, parts[1], db)
+    elif action == "checklist_item":
+        await handle_checklist_item_callback(callback_query, db)
+    elif action == "checklist_snooze":
+        await handle_checklist_snooze_callback(callback_query, db)
+    elif action == "checklist_delete":
+        await handle_checklist_delete_callback(callback_query, db)
+    elif action == "gdpr_confirm_delete":
+        await handle_gdpr_confirm_callback(callback_query, db)
+    elif action == "gdpr_cancel_delete":
+        await handle_gdpr_cancel_callback(callback_query, db)
     else:
         logger.warning("Unknown callback action: %s", data)

@@ -240,3 +240,110 @@ async def trigger_nudge(
 
     await task.save(db)
     return JSONResponse(content={"ok": True})
+
+
+@router.post("/trigger-checklist-evening")
+async def trigger_checklist_evening(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
+    """Triggered by Cloud Tasks to send evening checklist reminder."""
+    _verify_oidc_token(authorization)
+    from bot.models.checklist import ChecklistSession
+    from bot.handlers.checklist_callbacks import _build_checklist_message
+
+    body: dict = await request.json()
+    session_id: str = body.get("session_id", "")
+
+    if not session_id:
+        return JSONResponse(content={"ok": False, "error": "missing session_id"}, status_code=400)
+
+    db = get_firestore_client()
+    doc = await db.collection("checklist_sessions").document(session_id).get()
+    if not doc.exists:
+        return JSONResponse(content={"ok": True, "skipped": "session not found"})
+
+    session = ChecklistSession.from_firestore_dict(doc.to_dict())
+
+    # Idempotency guard
+    if session.state != "pending_evening":
+        return JSONResponse(content={"ok": True, "skipped": f"state is {session.state}"})
+
+    text, keyboard = _build_checklist_message(session)
+    evening_text = f"Jutro {session.template_name}! Oto Twoja lista:\n\n{text}"
+
+    try:
+        result = await _send_telegram_message(
+            chat_id=session.user_id,
+            text=evening_text,
+            reply_markup=keyboard,
+        )
+        message_id = result.get("result", {}).get("message_id")
+        session.evening_message_id = message_id
+    except Exception as exc:
+        logger.error("Failed to send evening checklist for session %s: %s", session_id, exc)
+        return JSONResponse(content={"ok": False, "error": "telegram send failed"}, status_code=500)
+
+    session.state = "evening_sent"
+    await session.save(db)
+    return JSONResponse(content={"ok": True})
+
+
+@router.post("/trigger-checklist-morning")
+async def trigger_checklist_morning(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
+    """Triggered by Cloud Tasks to send morning checklist reminder with only unchecked items."""
+    _verify_oidc_token(authorization)
+    from bot.models.checklist import ChecklistSession
+    from bot.handlers.checklist_callbacks import _build_checklist_message
+
+    body: dict = await request.json()
+    session_id: str = body.get("session_id", "")
+
+    if not session_id:
+        return JSONResponse(content={"ok": False, "error": "missing session_id"}, status_code=400)
+
+    db = get_firestore_client()
+    doc = await db.collection("checklist_sessions").document(session_id).get()
+    if not doc.exists:
+        return JSONResponse(content={"ok": True, "skipped": "session not found"})
+
+    session = ChecklistSession.from_firestore_dict(doc.to_dict())
+
+    # Allow morning trigger from evening_sent or morning_sent (for snooze re-trigger)
+    if session.state not in ("evening_sent", "morning_sent", "pending_evening"):
+        return JSONResponse(content={"ok": True, "skipped": f"state is {session.state}"})
+
+    # All checked already — send congratulations
+    if session.all_checked:
+        congrats_text = f"Juz wszystko spakowane! Milego {session.template_name}"
+        try:
+            await _send_telegram_message(chat_id=session.user_id, text=congrats_text)
+        except Exception as exc:
+            logger.error("Failed to send morning congrats for session %s: %s", session_id, exc)
+
+        session.state = "completed"
+        await session.save(db)
+        return JSONResponse(content={"ok": True, "all_checked": True})
+
+    # Send only unchecked items
+    text, keyboard = _build_checklist_message(session)
+    morning_text = f"Dzis {session.template_name}! Zostalo:\n\n{text}"
+
+    try:
+        result = await _send_telegram_message(
+            chat_id=session.user_id,
+            text=morning_text,
+            reply_markup=keyboard,
+        )
+        message_id = result.get("result", {}).get("message_id")
+        session.morning_message_id = message_id
+    except Exception as exc:
+        logger.error("Failed to send morning checklist for session %s: %s", session_id, exc)
+        return JSONResponse(content={"ok": False, "error": "telegram send failed"}, status_code=500)
+
+    session.state = "morning_sent"
+    await session.save(db)
+    return JSONResponse(content={"ok": True})

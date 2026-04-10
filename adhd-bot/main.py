@@ -1,7 +1,9 @@
 """FastAPI application entry point."""
 
+import os
+
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -43,3 +45,16 @@ app.include_router(admin_dashboard_router)
 @app.get("/health")
 async def health() -> JSONResponse:
     return JSONResponse(content={"status": "healthy"})
+
+
+@app.get("/privacy")
+async def privacy_policy() -> HTMLResponse:
+    """Serve the GDPR privacy policy page (public, no auth)."""
+    template_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "templates",
+        "privacy_policy.html",
+    )
+    with open(template_path, encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)

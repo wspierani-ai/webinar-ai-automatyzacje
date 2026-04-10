@@ -30,7 +30,8 @@ Odpowiedz TYLKO JSON (bez markdown) według schematu:
   "content": "treść zadania bez informacji o czasie",
   "scheduled_time_iso": "ISO 8601 datetime z timezone lub null jeśli brak pewności",
   "confidence": 0.0-1.0,
-  "is_morning_snooze": true/false
+  "is_morning_snooze": true/false,
+  "event_type": "task" | "event_with_preparation" | null
 }}
 
 Zasady:
@@ -40,6 +41,7 @@ Zasady:
 - is_morning_snooze: true gdy użytkownik mówi "jutro rano" lub "rano" bez konkretnej godziny
 - Wyrażenia względne: "za 2 godziny", "jutro", "w piątek" → oblicz względem current_datetime
 - Strefa czasowa: {timezone} (uwzględnij DST)
+- event_type: "event_with_preparation" gdy wiadomość dotyczy treningu, wyjścia, podróży, spotkania poza domem, wydarzenia wymagającego zabrania rzeczy (np. siłownia, basen, wyjazd, lotnisko). "task" dla zwykłych zadań. null gdy nie można określić.
 """
 
 
@@ -49,6 +51,7 @@ class ParsedTask:
     scheduled_time: Optional[datetime]
     confidence: float
     is_morning_snooze: bool = False
+    event_type: Optional[str] = None  # "task" | "event_with_preparation" | None
 
     @property
     def has_time(self) -> bool:
@@ -85,11 +88,16 @@ def _parse_gemini_response(raw_text: str, user_timezone: str) -> ParsedTask:
         except (ValueError, KeyError) as exc:
             logger.warning("Failed to parse scheduled_time_iso '%s': %s", raw_time, exc)
 
+    event_type = data.get("event_type") or None
+    if event_type not in ("task", "event_with_preparation", None):
+        event_type = None
+
     return ParsedTask(
         content=content,
         scheduled_time=scheduled_time,
         confidence=confidence,
         is_morning_snooze=is_morning_snooze,
+        event_type=event_type,
     )
 
 

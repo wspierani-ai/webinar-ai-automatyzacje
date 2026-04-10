@@ -96,6 +96,26 @@ def _compute_heuristic_time(user_timezone: str = "Europe/Warsaw") -> datetime:
     return candidate.astimezone(timezone.utc)
 
 
+async def _find_matching_template(db, user_id: int, content: str) -> Optional[dict]:
+    """Search user's checklist templates for a case-insensitive match against content keywords."""
+    try:
+        query = db.collection("checklist_templates").where("user_id", "==", user_id)
+        docs = await query.get()
+        if not docs:
+            return None
+
+        content_lower = content.lower()
+        for doc in docs:
+            data = doc.to_dict()
+            template_name = data.get("name", "").lower()
+            if template_name and template_name in content_lower:
+                return data
+        return None
+    except Exception as exc:
+        logger.warning("Failed to search checklist templates: %s", exc)
+        return None
+
+
 async def handle_text_message(message: dict, db) -> None:
     """Process a text message: parse → create pending task → confirm."""
     user_id = message["from"]["id"]
@@ -114,7 +134,7 @@ async def handle_text_message(message: dict, db) -> None:
         return
 
     # Parse message with Gemini
-    parsed = await parse_message(text, user_timezone=user.timezone)
+    parsed = await parse_message(text, user_timezone=user.timezone, user_id=user_id)
 
     # Determine scheduled time
     if parsed.has_time:
@@ -139,6 +159,24 @@ async def handle_text_message(message: dict, db) -> None:
     )
     await task.save(db)
 
+    # Check for event_with_preparation — offer checklist
+    extra_keyboard_rows: list[list[dict]] = []
+    if parsed.event_type == "event_with_preparation" and proposed_time:
+        matching_template = await _find_matching_template(db, user_id, content)
+        if matching_template:
+            extra_keyboard_rows.append([
+                {
+                    "text": f"Dodaj liste {matching_template['name']}",
+                    "callback_data": f"checklist_attach:{task.task_id}:{matching_template['template_id']}",
+                },
+                {"text": "Nie, tylko reminder", "callback_data": f"confirm:{task.task_id}"},
+            ])
+        else:
+            extra_keyboard_rows.append([
+                {"text": "Stworz liste", "callback_data": f"checklist_create:{task.task_id}"},
+                {"text": "Nie", "callback_data": f"confirm:{task.task_id}"},
+            ])
+
     # Send confirmation message
     if proposed_time:
         tz_name = user.timezone
@@ -146,21 +184,25 @@ async def handle_text_message(message: dict, db) -> None:
         local_time = proposed_time.astimezone(ZoneInfo(tz_name))
         time_str = local_time.strftime("%d.%m.%Y %H:%M")
         confirm_text = (
-            f"📝 <b>{content}</b>\n\n"
-            f"⏰ Przypomnę Ci: <b>{time_str}</b>\n\n"
+            f"<b>{content}</b>\n\n"
+            f"Przypomne Ci: <b>{time_str}</b>\n\n"
             f"Czy to jest dobry czas?"
         )
     else:
         confirm_text = (
-            f"📝 <b>{content}</b>\n\n"
-            f"⏰ Kiedy mam Ci o tym przypomnieć?\n"
-            f"Wciśnij OK aby wybrać domyślny czas lub Zmień czas."
+            f"<b>{content}</b>\n\n"
+            f"Kiedy mam Ci o tym przypomniez?\n"
+            f"Wcisnij OK aby wybrac domyslny czas lub Zmien czas."
         )
+
+    keyboard = _build_confirmation_keyboard(task.task_id)
+    if extra_keyboard_rows:
+        keyboard["inline_keyboard"] = extra_keyboard_rows + keyboard["inline_keyboard"]
 
     await _send_message(
         chat_id,
         confirm_text,
-        reply_markup=_build_confirmation_keyboard(task.task_id),
+        reply_markup=keyboard,
     )
 
 

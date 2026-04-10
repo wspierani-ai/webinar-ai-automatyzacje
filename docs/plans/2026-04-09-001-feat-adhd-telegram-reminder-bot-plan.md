@@ -1333,7 +1333,7 @@ Szablony checklist, flow reminderów (wieczorny + poranny), item callbacks, /del
 
 ### Faza I: Checklista + RODO
 
-- [ ] **Unit 19: Checklist Template Management**
+- [x] **Unit 19: Checklist Template Management**
 
 **Cel:** Tworzenie i edycja szablonów checklist. AI sugeruje itemy. Komendy `/new_checklist`, `/checklists`, `/evening`. Zapis szablonu po pierwszym użyciu.
 
@@ -1414,7 +1414,7 @@ checklist_sessions/{session_id}
 
 ---
 
-- [ ] **Unit 20: Checklist Session Flow (wieczorny + poranny reminder, item callbacks)**
+- [x] **Unit 20: Checklist Session Flow (wieczorny + poranny reminder, item callbacks)**
 
 **Cel:** Tworzenie sesji checklisty po wykryciu eventu. Wieczorny reminder z pełną listą. Poranny z nieodznaczonymi. Odznaczanie itemów. Auto-zamknięcie.
 
@@ -1498,7 +1498,7 @@ W `message_handlers.py` po parsowaniu:
 
 ---
 
-- [ ] **Unit 21: RODO — /delete\_my\_data + Polityka Prywatności**
+- [x] **Unit 21: RODO — /delete\_my\_data + Polityka Prywatności**
 
 **Cel:** Komenda `/delete_my_data` kasująca wszystkie dane usera. Statyczna strona z polityką prywatności. Compliance z RODO dla polskich userów.
 

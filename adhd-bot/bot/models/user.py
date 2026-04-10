@@ -14,6 +14,7 @@ class User:
     username: str = ""
     timezone: str = "Europe/Warsaw"
     morning_time: Optional[str] = None  # HH:MM format
+    evening_time: Optional[str] = None  # HH:MM format, default 21:00
     subscription_status: str = "trial"  # trial | active | grace_period | blocked
     trial_ends_at: Optional[datetime] = None
     grace_period_until: Optional[datetime] = None
@@ -53,6 +54,7 @@ class User:
             "username": self.username,
             "timezone": self.timezone,
             "morning_time": self.morning_time,
+            "evening_time": self.evening_time,
             "subscription_status": self.subscription_status,
             "trial_ends_at": self.trial_ends_at,
             "grace_period_until": self.grace_period_until,
@@ -73,6 +75,7 @@ class User:
             username=data.get("username", ""),
             timezone=data.get("timezone", "Europe/Warsaw"),
             morning_time=data.get("morning_time"),
+            evening_time=data.get("evening_time"),
             subscription_status=data.get("subscription_status", "trial"),
             trial_ends_at=data.get("trial_ends_at"),
             grace_period_until=data.get("grace_period_until"),

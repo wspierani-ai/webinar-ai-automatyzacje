@@ -1,10 +1,11 @@
-"""Command handlers: /start, /timezone, /morning."""
+"""Command handlers: /start, /timezone, /morning, /delete_my_data."""
 
 from __future__ import annotations
 
 import logging
 import os
 import re
+from typing import Any, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from bot.models.user import User
@@ -15,13 +16,20 @@ TELEGRAM_BASE_URL = "https://api.telegram.org"
 TIME_REGEX = re.compile(r"^(\d{2}):(\d{2})$")
 
 
-async def _send_message(chat_id: int, text: str) -> None:
+async def _send_message(
+    chat_id: int,
+    text: str,
+    reply_markup: Optional[dict] = None,
+) -> None:
     import httpx
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     url = f"{TELEGRAM_BASE_URL}/bot{token}/sendMessage"
+    payload: dict[str, Any] = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+        resp = await client.post(url, json=payload)
         resp.raise_for_status()
 
 
@@ -149,8 +157,33 @@ async def handle_morning(message: dict, db) -> None:
     )
 
 
+async def handle_delete_my_data(message: dict, db) -> None:
+    """Handle /delete_my_data command -- send confirmation prompt with inline buttons."""
+    chat_id = message["chat"]["id"]
+
+    warning_text = (
+        "To usunie WSZYSTKIE Twoje dane: zadania, checklisty, historie.\n"
+        "Subskrypcja Stripe zostanie anulowana. Nie mozna cofnac.\n\n"
+        "Czy na pewno chcesz usunac wszystkie dane?"
+    )
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "TAK, usun wszystko", "callback_data": "gdpr_confirm_delete"},
+                {"text": "Anuluj", "callback_data": "gdpr_cancel_delete"},
+            ]
+        ]
+    }
+    await _send_message(chat_id, warning_text, reply_markup=keyboard)
+
+
 async def dispatch_command(message: dict, db) -> None:
     """Route command to appropriate handler."""
+    from bot.handlers.checklist_command_handlers import (
+        handle_checklists,
+        handle_evening,
+        handle_new_checklist,
+    )
     from bot.handlers.payment_command_handlers import handle_billing, handle_subscribe
 
     text = message.get("text", "")
@@ -166,5 +199,13 @@ async def dispatch_command(message: dict, db) -> None:
         await handle_subscribe(message, db)
     elif command == "/billing":
         await handle_billing(message, db)
+    elif command == "/new_checklist":
+        await handle_new_checklist(message, db)
+    elif command == "/checklists":
+        await handle_checklists(message, db)
+    elif command == "/evening":
+        await handle_evening(message, db)
+    elif command == "/delete_my_data":
+        await handle_delete_my_data(message, db)
     else:
         logger.debug("Unknown command: %s", command)
