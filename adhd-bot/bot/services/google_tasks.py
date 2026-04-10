@@ -11,6 +11,7 @@ Polling (Google Tasks → bot):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -64,10 +65,10 @@ async def create_google_task(db, telegram_user_id: int, task) -> Optional[str]:
 
     try:
         service = _build_tasks_service(access_token)
-        created = (
+        created = await asyncio.to_thread(
             service.tasks()
             .insert(tasklist=tasks_list_id, body=task_body)
-            .execute()
+            .execute
         )
         google_task_id: str = created.get("id", "")
 
@@ -106,11 +107,13 @@ async def complete_google_task(db, telegram_user_id: int, task) -> None:
 
     try:
         service = _build_tasks_service(access_token)
-        service.tasks().patch(
-            tasklist=tasks_list_id,
-            task=task.google_task_id,
-            body={"status": "completed"},
-        ).execute()
+        await asyncio.to_thread(
+            service.tasks().patch(
+                tasklist=tasks_list_id,
+                task=task.google_task_id,
+                body={"status": "completed"},
+            ).execute
+        )
         logger.info("Marked Google Task %s as completed", task.google_task_id)
     except Exception as exc:
         logger.error("Failed to complete Google Task %s: %s", task.google_task_id, exc)
@@ -134,10 +137,12 @@ async def delete_google_task(db, telegram_user_id: int, task) -> None:
 
     try:
         service = _build_tasks_service(access_token)
-        service.tasks().delete(
-            tasklist=tasks_list_id,
-            task=task.google_task_id,
-        ).execute()
+        await asyncio.to_thread(
+            service.tasks().delete(
+                tasklist=tasks_list_id,
+                task=task.google_task_id,
+            ).execute
+        )
         logger.info("Deleted Google Task %s", task.google_task_id)
     except Exception as exc:
         logger.error("Failed to delete Google Task %s: %s", task.google_task_id, exc)
@@ -178,7 +183,9 @@ async def poll_user_tasks(db, telegram_user_id: int) -> list[str]:
                 hour=0, minute=0, second=0, microsecond=0
             ).isoformat()
 
-        result = service.tasks().list(**list_kwargs).execute()
+        result = await asyncio.to_thread(
+            service.tasks().list(**list_kwargs).execute
+        )
 
         completed_ids: list[str] = []
         for item in result.get("items", []):

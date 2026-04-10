@@ -357,6 +357,22 @@ last_updated: 2026-04-09
 
 ---
 
+## Do poprawy po review fazy 4
+
+- [x] 🔴 [blocking] **requirements.txt** — `cryptography` package brak w requirements.txt; AES-256 encryption tokenów Google nie zadziała w produkcji (fallback do plain base64); dodaj `cryptography==44.0.0`
+- [x] 🟠 [important] **bot/handlers/gtasks_polling_handler.py:192** — `completable_states` zawiera `TaskState.SCHEDULED` ale state machine zabrania `SCHEDULED → COMPLETED`; wywołanie `task.transition(TaskState.COMPLETED)` rzuci `InvalidStateTransitionError`, silently swallowed; usuń SCHEDULED z setu
+- [x] 🟠 [important] **bot/services/google_auth.py:300** — `except Exception` w `_refresh_access_token` zbyt szeroki; maskuje TypeError/AttributeError z logiki szyfrowania jako network failure i disconnectuje usera; restrukturyzacja: encryption/storage przeniesione poza try/except, błędy szyfrowania propagują się zamiast być maskowane
+- [x] 🟠 [important] **bot/services/google_auth.py:115-137** — `verify_oauth_state` nie waliduje typu `telegram_user_id`; jeśli pole jest None/string zamiast int, downstream code traktuje je jako prawidłowe; dodaj `return user_id if isinstance(user_id, int) else None`
+- [x] 🟠 [important] **bot/services/google_calendar.py:83** + **bot/services/google_tasks.py:67** — synchroniczne `service.*.execute()` blokuje async event loop FastAPI; użyj `await asyncio.to_thread(...)` do owinięcia wywołań Google API
+- [ ] 🟡 [nit] **bot/handlers/gtasks_polling_handler.py:34** — `_verify_oidc_token` zduplikowana teraz w 3 plikach (carryover z Faz 1-3); wyciągnij do wspólnego modułu w Unit 18
+- [ ] 🟡 [nit] **bot/handlers/google_oauth_handler.py:37** + **bot/handlers/gtasks_polling_handler.py:29** — `TELEGRAM_BASE_URL` zduplikowany teraz w 8 plikach (carryover); wyciągnij do `bot/config.py` przed Fazą 5
+- [ ] 🟡 [nit] **bot/services/google_calendar.py:32** — `import httplib2` nieużywany bezpośrednio; usuń zbędny import
+- [ ] 🟡 [nit] **bot/handlers/google_oauth_handler.py:228-244** — `_html_response` interpoluje parametry bez `html.escape()`; aktualnie bezpieczne (hardcoded strings) ale fragile; dodaj escaping
+- [ ] 🟡 [nit] **bot/services/google_auth.py:50-54** — `_get_encryption_key` zwraca zeroed key bez ostrzeżenia w produkcji; dodaj `logger.error` gdy env var pusty i TESTING!=1
+- [ ] 🟡 [nit] **tests/test_google_tasks.py** — brak testu dla `delete_google_task` (zdefiniowany w planie technicznym linia 960)
+
+---
+
 ## Faza 5 — Admin Dashboard + Security (Units 15-18)
 
 ### Unit 15: Gemini Token Usage Tracking

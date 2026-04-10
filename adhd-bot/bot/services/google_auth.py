@@ -134,7 +134,9 @@ async def verify_oauth_state(db, state: str) -> Optional[int]:
 
     # Consume state (single-use)
     await doc_ref.delete()
-    return data.get("telegram_user_id")
+
+    user_id = data.get("telegram_user_id")
+    return user_id if isinstance(user_id, int) else None
 
 
 def build_oauth_url(state: str, redirect_uri: str) -> str:
@@ -260,6 +262,7 @@ async def _refresh_access_token(
     client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
     client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
+    # Phase 1: HTTP request to Google token endpoint
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(
@@ -271,41 +274,41 @@ async def _refresh_access_token(
                     "grant_type": "refresh_token",
                 },
             )
-
-        if resp.status_code != 200:
-            logger.warning(
-                "Token refresh failed for user %s: %s", telegram_user_id, resp.text
-            )
-            await _mark_google_disconnected(db, telegram_user_id)
-            await _send_reconnect_notification(telegram_user_id)
-            return None
-
-        token_data = resp.json()
-        access_token = token_data.get("access_token", "")
-        expires_in = token_data.get("expires_in", 3600)
-
-        now = datetime.now(tz=timezone.utc)
-        token_expiry = now + timedelta(seconds=expires_in)
-
-        doc_ref = db.collection("users").document(str(telegram_user_id))
-        await doc_ref.update(
-            {
-                "google_access_token": _encrypt_token(access_token),
-                "google_token_expiry": token_expiry,
-                "updated_at": now,
-            }
-        )
-        return access_token
-
     except Exception as exc:
         logger.error(
-            "Unexpected error during token refresh for user %s: %s",
+            "Network error during token refresh for user %s: %s",
             telegram_user_id,
             exc,
         )
         await _mark_google_disconnected(db, telegram_user_id)
         await _send_reconnect_notification(telegram_user_id)
         return None
+
+    if resp.status_code != 200:
+        logger.warning(
+            "Token refresh failed for user %s: %s", telegram_user_id, resp.text
+        )
+        await _mark_google_disconnected(db, telegram_user_id)
+        await _send_reconnect_notification(telegram_user_id)
+        return None
+
+    # Phase 2: Parse response and persist tokens (errors here should propagate)
+    token_data = resp.json()
+    access_token = token_data.get("access_token", "")
+    expires_in = token_data.get("expires_in", 3600)
+
+    now = datetime.now(tz=timezone.utc)
+    token_expiry = now + timedelta(seconds=expires_in)
+
+    doc_ref = db.collection("users").document(str(telegram_user_id))
+    await doc_ref.update(
+        {
+            "google_access_token": _encrypt_token(access_token),
+            "google_token_expiry": token_expiry,
+            "updated_at": now,
+        }
+    )
+    return access_token
 
 
 async def _mark_google_disconnected(db, telegram_user_id: int) -> None:

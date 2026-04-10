@@ -189,7 +189,7 @@ async def _sync_completed_task(
     task = Task.from_firestore_dict(task_data)
 
     # Only complete tasks in active states
-    completable_states = {TaskState.SCHEDULED, TaskState.REMINDED, TaskState.NUDGED, TaskState.SNOOZED}
+    completable_states = {TaskState.REMINDED, TaskState.NUDGED, TaskState.SNOOZED}
     if task.state not in completable_states:
         return 0
 

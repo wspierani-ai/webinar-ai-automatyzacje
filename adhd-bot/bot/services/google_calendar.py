@@ -11,6 +11,7 @@ All functions are graceful no-ops when user has no Google connection.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -80,7 +81,9 @@ async def create_calendar_event(db, telegram_user_id: int, task) -> Optional[str
 
     try:
         service = _build_google_service(access_token)
-        event = service.events().insert(calendarId=calendar_id, body=event_body).execute()
+        event = await asyncio.to_thread(
+            service.events().insert(calendarId=calendar_id, body=event_body).execute
+        )
         event_id: str = event.get("id", "")
 
         if event_id:
@@ -128,11 +131,13 @@ async def update_calendar_event_time(
 
     try:
         service = _build_google_service(access_token)
-        service.events().patch(
-            calendarId=calendar_id,
-            eventId=task.google_calendar_event_id,
-            body=patch_body,
-        ).execute()
+        await asyncio.to_thread(
+            service.events().patch(
+                calendarId=calendar_id,
+                eventId=task.google_calendar_event_id,
+                body=patch_body,
+            ).execute
+        )
         logger.info(
             "Updated Calendar event %s time to %s", task.google_calendar_event_id, new_time
         )
@@ -171,11 +176,13 @@ async def complete_calendar_event(db, telegram_user_id: int, task) -> None:
 
     try:
         service = _build_google_service(access_token)
-        service.events().patch(
-            calendarId=calendar_id,
-            eventId=task.google_calendar_event_id,
-            body=patch_body,
-        ).execute()
+        await asyncio.to_thread(
+            service.events().patch(
+                calendarId=calendar_id,
+                eventId=task.google_calendar_event_id,
+                body=patch_body,
+            ).execute
+        )
         logger.info("Marked Calendar event %s as completed", task.google_calendar_event_id)
     except Exception as exc:
         logger.error(
@@ -203,10 +210,12 @@ async def delete_calendar_event(db, telegram_user_id: int, task) -> None:
 
     try:
         service = _build_google_service(access_token)
-        service.events().delete(
-            calendarId=calendar_id,
-            eventId=task.google_calendar_event_id,
-        ).execute()
+        await asyncio.to_thread(
+            service.events().delete(
+                calendarId=calendar_id,
+                eventId=task.google_calendar_event_id,
+            ).execute
+        )
         logger.info("Deleted Calendar event %s", task.google_calendar_event_id)
     except Exception as exc:
         logger.error(
