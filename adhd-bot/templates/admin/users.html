@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Users{% endblock %}
+
+{% block content %}
+<div x-data="usersData()" x-init="loadUsers()">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Users</h1>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-4 mb-6 flex flex-wrap gap-4 items-center">
+        <div>
+            <label class="text-sm text-gray-600 mr-2">Status:</label>
+            <select x-model="filter.status" @change="loadUsers()" class="border border-gray-300 rounded px-3 py-1.5 text-sm">
+                <option value="">All</option>
+                <option value="active">Active</option>
+                <option value="trial">Trial</option>
+                <option value="blocked">Blocked</option>
+                <option value="grace_period">Grace Period</option>
+            </select>
+        </div>
+        <div>
+            <label class="text-sm text-gray-600 mr-2">Search (ID):</label>
+            <input type="text" x-model="filter.search" @keyup.enter="loadUsers()" placeholder="Telegram ID" class="border border-gray-300 rounded px-3 py-1.5 text-sm">
+        </div>
+        <button @click="loadUsers()" class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700">Search</button>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telegram ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trial Ends</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Google</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                <template x-for="user in users" :key="user.user_id">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="user.user_id"></td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                  :class="{
+                                      'bg-green-100 text-green-800': user.subscription_status === 'active',
+                                      'bg-yellow-100 text-yellow-800': user.subscription_status === 'trial',
+                                      'bg-red-100 text-red-800': user.subscription_status === 'blocked',
+                                      'bg-orange-100 text-orange-800': user.subscription_status === 'grace_period'
+                                  }"
+                                  x-text="user.subscription_status"></span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="user.created_at ? user.created_at.split('T')[0] : '-'"></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="user.trial_ends_at ? user.trial_ends_at.split('T')[0] : '-'"></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="user.google_connected ? 'Connected' : '-'"></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <a :href="'/admin/users/' + user.user_id" class="text-blue-600 hover:text-blue-900">Details</a>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="mt-4 flex justify-between items-center" x-show="pagination.pages > 1">
+        <span class="text-sm text-gray-600" x-text="'Page ' + pagination.page + ' of ' + pagination.pages + ' (' + pagination.total + ' users)'"></span>
+        <div class="space-x-2">
+            <button @click="pagination.page--; loadUsers()" :disabled="pagination.page <= 1" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Prev</button>
+            <button @click="pagination.page++; loadUsers()" :disabled="pagination.page >= pagination.pages" class="px-3 py-1 border rounded text-sm disabled:opacity-50">Next</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function usersData() {
+    return {
+        users: [],
+        filter: { status: '', search: '' },
+        pagination: { page: 1, pages: 1, total: 0 },
+        async loadUsers() {
+            try {
+                const params = new URLSearchParams();
+                if (this.filter.status) params.set('status', this.filter.status);
+                if (this.filter.search) params.set('search', this.filter.search);
+                params.set('page', this.pagination.page);
+                const resp = await fetch('/admin/api/users?' + params.toString());
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.users = data.users;
+                    this.pagination = { page: data.page, pages: data.pages, total: data.total };
+                }
+            } catch (e) {
+                console.error('Failed to load users', e);
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

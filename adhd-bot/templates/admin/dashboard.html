@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div x-data="dashboardData()" x-init="loadData()">
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Total Users</div>
+            <div class="mt-2 text-3xl font-semibold text-gray-900" x-text="stats.total_users">-</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Active Subscriptions</div>
+            <div class="mt-2 text-3xl font-semibold text-green-600" x-text="stats.active_subscriptions">-</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">MRR</div>
+            <div class="mt-2 text-3xl font-semibold text-blue-600" x-text="stats.mrr_pln + ' PLN'">-</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Gemini Cost (this month)</div>
+            <div class="mt-2 text-3xl font-semibold text-orange-600" x-text="stats.total_gemini_cost_pln_this_month + ' PLN'">-</div>
+        </div>
+    </div>
+
+    <!-- Secondary Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Trial Users</div>
+            <div class="mt-2 text-2xl font-semibold text-yellow-600" x-text="stats.trial_users">-</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Blocked Users</div>
+            <div class="mt-2 text-2xl font-semibold text-red-600" x-text="stats.blocked_users">-</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="text-sm font-medium text-gray-500">Trial Conversion Rate</div>
+            <div class="mt-2 text-2xl font-semibold text-gray-900" x-text="(stats.trial_conversion_rate * 100).toFixed(0) + '%'">-</div>
+        </div>
+    </div>
+
+    <!-- MRR Chart Placeholder -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">MRR Overview</h2>
+        <canvas id="mrrChart" height="100"></canvas>
+    </div>
+</div>
+
+<script>
+function dashboardData() {
+    return {
+        stats: {
+            total_users: 0,
+            active_subscriptions: 0,
+            trial_users: 0,
+            blocked_users: 0,
+            mrr_pln: 0,
+            arr_pln: 0,
+            trial_conversion_rate: 0,
+            total_gemini_cost_pln_this_month: 0,
+            churn_rate_last_30d: 0,
+        },
+        async loadData() {
+            try {
+                const resp = await fetch('/admin/api/overview');
+                if (resp.ok) {
+                    this.stats = await resp.json();
+                    this.renderChart();
+                }
+            } catch (e) {
+                console.error('Failed to load dashboard data', e);
+            }
+        },
+        renderChart() {
+            const ctx = document.getElementById('mrrChart');
+            if (!ctx) return;
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Current MRR'],
+                    datasets: [{
+                        label: 'MRR (PLN)',
+                        data: [this.stats.mrr_pln],
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+    }
+}
+</script>
+{% endblock %}
