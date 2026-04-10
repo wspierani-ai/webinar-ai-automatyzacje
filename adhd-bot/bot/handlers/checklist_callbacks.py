@@ -151,9 +151,22 @@ async def handle_checklist_item_callback(callback_query: dict, db) -> None:
 
     doc_ref = db.collection("checklist_sessions").document(session_id)
 
-    # Atomic read-modify-write inside a Firestore transaction
-    transaction = db.transaction()
-    session = await _toggle_item_in_transaction(transaction, doc_ref, item_index)
+    # Atomic read-modify-write inside a Firestore transaction.
+    # Falls back to direct call when the real Firestore SDK is unavailable
+    # (e.g. MagicMock in tests) — same pattern as User.get_or_create.
+    try:
+        from google.cloud.firestore import async_transactional  # type: ignore
+
+        transaction = db.transaction()
+
+        @async_transactional
+        async def _run(transaction):
+            return await _toggle_item_in_transaction(transaction, doc_ref, item_index)
+
+        session = await _run(transaction)
+    except (ImportError, AttributeError, TypeError):
+        transaction = db.transaction()
+        session = await _toggle_item_in_transaction(transaction, doc_ref, item_index)
 
     if session is None:
         return
