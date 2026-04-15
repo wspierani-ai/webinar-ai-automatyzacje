@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI, Request
@@ -18,7 +17,7 @@ os.environ.setdefault("CLOUD_RUN_SERVICE_URL", "https://test.run.app")
 
 from bot.security.encryption import decrypt, encrypt
 from bot.security.headers import SECURITY_HEADERS, SecurityHeadersMiddleware
-from bot.security.rate_limiter import limiter, rate_limit_exceeded_handler
+from bot.security.rate_limiter import rate_limit_exceeded_handler
 from bot.security.validators import (
     ValidationError,
     sanitize_for_logging,

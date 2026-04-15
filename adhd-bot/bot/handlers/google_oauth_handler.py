@@ -17,8 +17,8 @@ import logging
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import HTMLResponse
 
 from bot.security.rate_limiter import limiter
 from bot.services.firestore_client import get_firestore_client

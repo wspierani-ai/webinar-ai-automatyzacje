@@ -98,7 +98,6 @@ class TestTriggerNudgeWithRemindedTask:
         )
         db, task_doc_ref = _make_db_with_task(task)
 
-        saved_data: dict = {}
 
         async def capture_save(*args, **kwargs):
             # Capture what was saved

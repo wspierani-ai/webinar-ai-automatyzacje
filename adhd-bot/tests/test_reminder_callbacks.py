@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from bot.models.task import Task, TaskState
 from bot.models.user import User
@@ -12,8 +12,6 @@ from bot.handlers.callback_handlers import (
     handle_done_callback,
     handle_reject_callback,
     handle_snooze_callback,
-    handle_confirm_callback,
-    handle_change_time_callback,
 )
 
 

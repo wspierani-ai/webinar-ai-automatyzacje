@@ -276,7 +276,6 @@ async def handle_voice_message(message: dict, db) -> None:
 
 async def _handle_time_input(message: dict, user: User, db) -> None:
     """Handle user providing a new time when in awaiting_time_input conversation state."""
-    from datetime import timedelta
     from zoneinfo import ZoneInfo
 
     user_id = message["from"]["id"]

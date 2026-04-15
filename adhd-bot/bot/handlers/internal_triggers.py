@@ -92,7 +92,7 @@ async def _send_telegram_message(
 
 async def _get_task_and_user(db, task_id: str):
     """Fetch Task and User objects from Firestore."""
-    from bot.models.task import Task, TaskState
+    from bot.models.task import Task
     from bot.models.user import User
 
     task_doc = await db.collection("tasks").document(task_id).get()

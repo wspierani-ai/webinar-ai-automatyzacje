@@ -17,7 +17,6 @@ os.environ.setdefault("CLOUD_RUN_SERVICE_URL", "https://test.run.app")
 os.environ.setdefault("ADMIN_JWT_SECRET", "test-jwt-secret-for-dev")
 
 from bot.admin.auth import _COOKIE_NAME, create_jwt_token
-from bot.admin.middleware import AdminSession
 from bot.admin.queries import get_overview_stats, get_users_list
 from bot.admin.router import router as admin_router
 

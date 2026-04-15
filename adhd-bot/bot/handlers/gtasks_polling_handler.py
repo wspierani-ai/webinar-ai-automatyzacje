@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -140,7 +139,6 @@ async def poll_google_tasks(
 
 async def _process_user_polling(db, telegram_user_id: int) -> int:
     """Poll Google Tasks for one user. Returns number of tasks completed."""
-    from bot.models.task import TaskState
 
     completed_google_task_ids = await poll_user_tasks(db, telegram_user_id)
 
@@ -193,8 +191,6 @@ async def _sync_completed_task(
     if task.state not in completable_states:
         return 0
 
-    from bot.models.task import ARCHIVE_STATES
-    from datetime import datetime, timedelta, timezone
 
     # Transition to COMPLETED
     task.transition(TaskState.COMPLETED)

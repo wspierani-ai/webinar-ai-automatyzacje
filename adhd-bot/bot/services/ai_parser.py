@@ -7,7 +7,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -150,7 +150,7 @@ async def parse_voice_message(
     Returns ParsedTask(content=None, confidence=0.0) on any error.
     """
     try:
-        from vertexai.generative_models import GenerativeModel, Part  # type: ignore
+        from vertexai.generative_models import Part  # type: ignore
 
         tz = ZoneInfo(user_timezone)
         now = datetime.now(tz=tz)

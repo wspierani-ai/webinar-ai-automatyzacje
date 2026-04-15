@@ -4,7 +4,6 @@ import os
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from bot.admin.auth import router as admin_auth_router

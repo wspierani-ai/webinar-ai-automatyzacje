@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from bot.models.task import Task, TaskState, InvalidStateTransitionError
+from bot.models.task import Task, TaskState
 from bot.models.user import User
 from bot.services.scheduler import cancel_reminder, schedule_reminder, snooze_reminder
 
@@ -200,10 +200,8 @@ async def handle_snooze_callback(
 
     if snooze_type == "30m":
         new_fire_at = now + timedelta(minutes=30)
-        snooze_label = "+30 min"
     elif snooze_type == "2h":
         new_fire_at = now + timedelta(hours=2)
-        snooze_label = "+2 godziny"
     elif snooze_type == "morning":
         if user and user.morning_time:
             # Schedule for tomorrow at morning_time
@@ -215,7 +213,6 @@ async def handle_snooze_callback(
                 tomorrow.year, tomorrow.month, tomorrow.day, h, m, tzinfo=tz
             )
             new_fire_at = morning_local.astimezone(timezone.utc)
-            snooze_label = f"Jutro rano ({user.morning_time})"
         else:
             # R9 flow: ask for morning time
             if user:
@@ -234,7 +231,6 @@ async def handle_snooze_callback(
         return
 
     # Transition task
-    old_state = task.state
     task.transition(TaskState.SNOOZED)
 
     # Cancel nudge if any
@@ -264,7 +260,6 @@ async def handle_done_callback(
 ) -> None:
     """Handle [✓ Zrobione] — mark task as COMPLETED."""
     cq_id = callback_query["id"]
-    user_id = callback_query["from"]["id"]
     chat_id = callback_query["message"]["chat"]["id"]
     message_id = callback_query["message"]["message_id"]
 

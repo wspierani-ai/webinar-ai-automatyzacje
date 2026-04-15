@@ -1,9 +1,9 @@
 ---
 title: "ADHD Reminder Bot — Kontekst techniczny"
 branch: feature/adhd-telegram-reminder-bot
-status: active
+status: completed
 created: 2026-04-09
-last_updated: 2026-04-09
+completed: 2026-04-09
 ---
 
 # ADHD Reminder Bot — Kontekst techniczny
@@ -249,7 +249,7 @@ Unit 3  ─→ Unit 21
 | Faza 3 — Monetyzacja (Unit 11) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 4 — Google Integration (Units 12-14) | ✅ Zaimplementowana | 2026-04-09 |
 | Faza 5 — Admin Dashboard + Security (Units 15-18) | ✅ Zaimplementowana | 2026-04-09 |
-| Faza 6 — Checklista + RODO (Units 19-21) | ⬜ Do zrobienia | — |
+| Faza 6 — Checklista + RODO (Units 19-21) | ✅ Zaimplementowana | 2026-04-09 |
 
 ## Zmiany w Fazie 1 (2026-04-09)
 
@@ -718,6 +718,74 @@ Faza 5 jest gotowa do kontynuacji. Wszystkie 5 P2 naprawione poprawnie. Security
 - 249 istniejacych testow: PASS (brak regresji)
 - 30 nowych testow: PASS
 - Razem: 279 testow PASS
+
+## Review Fazy 6 (2026-04-09)
+
+**Wynik:** BLOKUJE — P1=3, P2=5, P3=5
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-6.md`
+
+### P1 — wymagaja naprawy przed kontynuacja
+
+1. GDPR `cascade_delete_user_data` nie usuwa `token_usage` subcollections — struktura `token_usage/{date}/users/{user_id}` wymaga collection group query lub enumeracji dat
+2. Callbacki `checklist_attach` i `checklist_create` nie maja handlerow w `dispatch_callback` — przyciski event detection sa martwe
+3. Race condition w `handle_checklist_item_callback` — non-atomic read-modify-write, lost update przy concurrent clicks
+
+### P2 — wymagaja naprawy
+
+1. Template delete bez weryfikacji wlasciciela (security)
+2. GDPR cascade nie anuluje aktywnych Cloud Tasks
+3. `processed_updates` w GDPR cascade — brak pola user_id
+4. Brak uncheck itemow (plan wymaga check/uncheck)
+5. `except Exception` zbyt szerokie (7 instancji w nowych plikach)
+
+### Kluczowe wnioski
+
+- Snapshot isolation checklisty poprawna (items kopiowane przy tworzeniu sesji)
+- Idempotency guards w trigger-checklist-evening/morning spojne z wczesniejsizmi fazami
+- GDPR cascade delete jest niepelne — krytyczne dla compliance
+- Event detection (Unit 20 R19) jest czesciowo zaimplementowane — callbacki brakuja
+
+## Review Fazy 6 — re-run cykl 2 (weryfikacja napraw P1+P2) (2026-04-09)
+
+**Wynik:** BLOKUJE — P1=1 (nowy), P2=0, P3=5 (carryover)
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-6.md`
+
+### Naprawione z cyklu 1 (8/8)
+- P1-1: GDPR token_usage subcollection enumeration — naprawione
+- P1-2: checklist_attach/create handlery w dispatch_callback — naprawione
+- P1-3: Firestore transaction w item callback — dodane, ale patrz P1-NEW
+- P2-1: Template delete weryfikuje owner — naprawione
+- P2-2: GDPR anuluje aktywne Cloud Tasks — naprawione
+- P2-3: processed_updates usuniete z GDPR listy — naprawione
+- P2-4: Toggle uncheck/check — naprawione
+- P2-5: except Exception zawezone do konkretnych typow — naprawione
+
+### Nowy P1 (regresja w naprawie P1-3) — NAPRAWIONE w cyklu 2
+
+`checklist_callbacks.py:154-156` — Transakcja Firestore nie byla commitowana. Naprawione przez dodanie `@async_transactional` na wewnetrznej funkcji `_run` (linia 162), identyczny wzorzec z `user.py:94-115`.
+
+### Kluczowe wnioski
+
+- 7 z 8 napraw jest w pelni poprawnych i solidnych
+- Naprawa P1-3 (transaction) jest poprawna koncepcyjnie ale brakuje dekoratora `@async_transactional` — triwialna poprawka
+- Testy nie wylapaly problemu bo mock nie wymusza commitowania transakcji
+- 285 testow przechodzi (6 nowych testow dodanych przy naprawach P1/P2)
+
+## Review Fazy 6 — re-run cykl 3 (weryfikacja naprawy P1-NEW) (2026-04-09)
+
+**Wynik:** CZYSTE — P1=0, P2=0, P3=5 (carryover)
+**Raport:** `docs/active/adhd-telegram-reminder-bot/review-faza-6.md`
+
+### P1-NEW z cyklu 2 — NAPRAWIONE
+- `@async_transactional` dodany na `_run` w `checklist_callbacks.py:162`
+- Wzorzec identyczny z `bot/models/user.py:94-115`
+- Fallback dla testow z MagicMock zachowany (`except (ImportError, AttributeError, TypeError)`)
+- 285 testow: wszystkie PASS
+
+### Kluczowe wnioski
+- Wszystkie P1 (3+1 regresja) i P2 (5) z Fazy 6 naprawione w 2 cyklach naprawczych
+- Faza 6 gotowa do kontynuacji — brak blokujacych problemow
+- 5 P3 (carryover nit) do rozwiazania w przyszlych fazach lub refaktoryzacji
 
 ## Zrodla
 

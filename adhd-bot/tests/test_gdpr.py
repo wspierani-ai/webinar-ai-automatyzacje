@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bot.handlers.command_handlers import handle_delete_my_data

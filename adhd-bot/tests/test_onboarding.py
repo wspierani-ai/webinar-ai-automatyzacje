@@ -119,7 +119,7 @@ class TestTimezoneCommand:
         existing_user = User(telegram_user_id=12345, timezone="UTC")
         db, doc_ref = _make_existing_user_db(existing_user)
 
-        with patch("bot.handlers.command_handlers._send_message", new_callable=AsyncMock) as mock_send:
+        with patch("bot.handlers.command_handlers._send_message", new_callable=AsyncMock):
             await handle_timezone(_make_message("/timezone Europe/Warsaw"), db)
 
         doc_ref.set.assert_called()
@@ -171,7 +171,7 @@ class TestMorningCommand:
         existing_user = User(telegram_user_id=12345)
         db, doc_ref = _make_existing_user_db(existing_user)
 
-        with patch("bot.handlers.command_handlers._send_message", new_callable=AsyncMock) as mock_send:
+        with patch("bot.handlers.command_handlers._send_message", new_callable=AsyncMock):
             await handle_morning(_make_message("/morning 8:3"), db)
 
         doc_ref.set.assert_not_called()

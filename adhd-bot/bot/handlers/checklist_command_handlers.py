@@ -10,7 +10,6 @@ from typing import Any, Optional
 from bot.models.checklist import (
     ChecklistTemplate,
     ChecklistValidationError,
-    MAX_CHECKLIST_ITEMS,
 )
 from bot.models.user import User
 

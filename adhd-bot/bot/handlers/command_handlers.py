@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from typing import Any, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
+from zoneinfo import available_timezones
 
 from bot.models.user import User
 

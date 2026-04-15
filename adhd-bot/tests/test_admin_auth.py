@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,7 +22,6 @@ from bot.admin.auth import (
     _COOKIE_NAME,
     _JWT_ALGORITHM,
     _get_jwt_secret,
-    _verify_admin_oauth_state,
     create_audit_log,
     create_jwt_token,
     decode_jwt_token,

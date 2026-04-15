@@ -204,7 +204,7 @@ class TestMorningTrigger:
         assert body.get("all_checked") is True
         # Should send congratulations
         assert mock_send.called
-        sent_text = mock_send.call_args[1].get("text", "") or mock_send.call_args[0][1] if len(mock_send.call_args[0]) > 1 else ""
+        mock_send.call_args[1].get("text", "") or mock_send.call_args[0][1] if len(mock_send.call_args[0]) > 1 else ""
         # Check the message was sent
         assert mock_send.call_count >= 1
 
@@ -253,9 +253,9 @@ class TestMorningTrigger:
         # Verify keyboard contains unchecked items
         call_kwargs = mock_send.call_args
         if call_kwargs.kwargs.get("reply_markup"):
-            keyboard = call_kwargs.kwargs["reply_markup"]
+            call_kwargs.kwargs["reply_markup"]
         else:
-            keyboard = call_kwargs[1].get("reply_markup") if len(call_kwargs) > 1 else {}
+            call_kwargs[1].get("reply_markup") if len(call_kwargs) > 1 else {}
 
         # At minimum, the message was sent with a keyboard
         assert mock_send.call_count >= 1
@@ -337,7 +337,7 @@ class TestItemCallback:
 
         with (
             patch("bot.handlers.checklist_callbacks._answer_callback_query", new_callable=AsyncMock),
-            patch("bot.handlers.checklist_callbacks._edit_message_text", new_callable=AsyncMock) as mock_edit,
+            patch("bot.handlers.checklist_callbacks._edit_message_text", new_callable=AsyncMock),
         ):
             await handle_checklist_item_callback(callback, db)
 

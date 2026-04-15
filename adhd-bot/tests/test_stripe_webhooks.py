@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import json
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
@@ -368,7 +367,7 @@ class TestBlockedUserMessage:
         """Blocked user sending a text message gets BLOCKED_USER_TEXT with /subscribe."""
         monkeypatch.setenv("TESTING", "1")
 
-        from bot.handlers.message_handlers import handle_text_message, BLOCKED_USER_TEXT
+        from bot.handlers.message_handlers import handle_text_message
         from bot.models.user import User
 
         # Create blocked user mock
@@ -377,7 +376,6 @@ class TestBlockedUserMessage:
         user.conversation_state = None
 
         db = MagicMock()
-        sent_messages = []
 
         with patch("bot.handlers.message_handlers.User") as MockUser, \
              patch("bot.handlers.message_handlers._send_message", new_callable=AsyncMock) as mock_send:

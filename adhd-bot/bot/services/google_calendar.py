@@ -30,7 +30,6 @@ def _build_google_service(access_token: str):
 
     Uses google-api-python-client (already in requirements.txt).
     """
-    import httplib2
     from googleapiclient.discovery import build  # type: ignore
     from google.oauth2.credentials import Credentials  # type: ignore
 

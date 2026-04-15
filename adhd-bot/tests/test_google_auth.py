@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import base64
-import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -67,7 +66,7 @@ class TestConnectGoogleOAuthURL:
     @pytest.mark.asyncio
     async def test_build_oauth_url_contains_required_scopes(self):
         """build_oauth_url should include all required Google scopes."""
-        from bot.services.google_auth import build_oauth_url, OAUTH_SCOPES
+        from bot.services.google_auth import build_oauth_url
 
         url = build_oauth_url(state="test-state-123", redirect_uri="https://test.example.com/auth/google/callback")
 
@@ -335,7 +334,7 @@ class TestRefreshFailure:
         ) as mock_disconnect, patch(
             "bot.services.google_auth._send_reconnect_notification",
             new=AsyncMock(),
-        ) as mock_notify, patch(
+        ), patch(
             "httpx.AsyncClient",
             side_effect=Exception("network error"),
         ):
@@ -450,7 +449,7 @@ class TestOAuthCallbackEndpoint:
 
         with patch(
             "bot.handlers.google_oauth_handler.get_firestore_client",
-        ) as mock_db_fn, patch(
+        ), patch(
             "bot.handlers.google_oauth_handler.verify_oauth_state",
             new=AsyncMock(return_value=None),
         ):

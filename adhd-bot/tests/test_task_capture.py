@@ -6,7 +6,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from bot.models.task import Task, TaskState
+from bot.models.task import TaskState
 from bot.models.user import User
 from bot.services.ai_parser import ParsedTask
 
@@ -147,7 +147,7 @@ class TestBlockedUser:
         db, doc_ref = _make_db_active_user(user)
 
         with patch("bot.handlers.message_handlers._send_message", new_callable=AsyncMock) as mock_send, \
-             patch("bot.handlers.message_handlers.parse_message", new_callable=AsyncMock) as mock_parse:
+             patch("bot.handlers.message_handlers.parse_message", new_callable=AsyncMock):
             from bot.handlers.message_handlers import handle_text_message
             await handle_text_message(_make_message("Kupić mleko"), db)
 

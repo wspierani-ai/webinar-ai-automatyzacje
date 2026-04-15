@@ -10,7 +10,7 @@ from typing import Any, Optional
 import httpx
 from google.cloud.exceptions import GoogleCloudError
 
-from bot.models.checklist import ChecklistItem, ChecklistSession, ChecklistTemplate
+from bot.models.checklist import ChecklistSession, ChecklistTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,6 @@ TELEGRAM_BASE_URL = "https://api.telegram.org"
 
 
 async def _answer_callback_query(callback_query_id: str, text: str = "") -> None:
-    import httpx
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -34,7 +33,6 @@ async def _edit_message_text(
     text: str,
     reply_markup: Optional[dict] = None,
 ) -> bool:
-    import httpx
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     payload: dict[str, Any] = {
@@ -66,7 +64,6 @@ async def _send_message(
     text: str,
     reply_markup: Optional[dict] = None,
 ) -> dict:
-    import httpx
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     url = f"{TELEGRAM_BASE_URL}/bot{token}/sendMessage"
@@ -342,7 +339,6 @@ async def handle_checklist_create_callback(callback_query: dict, db) -> None:
     """
     callback_data = callback_query.get("data", "")
     callback_query_id = callback_query["id"]
-    user_id = callback_query["from"]["id"]
     chat_id = callback_query["message"]["chat"]["id"]
     message_id = callback_query["message"]["message_id"]
 

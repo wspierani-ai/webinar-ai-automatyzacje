@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bot.services.ai_parser import ParsedTask, _parse_gemini_response, parse_message, parse_voice_message

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bot.models.checklist import (
@@ -299,7 +298,7 @@ class TestEveningCommand:
         collection_mock.document.return_value = doc_ref
         db.collection.return_value = collection_mock
 
-        with patch("bot.handlers.checklist_command_handlers._send_message", new_callable=AsyncMock) as mock_send:
+        with patch("bot.handlers.checklist_command_handlers._send_message", new_callable=AsyncMock):
             await handle_evening(_make_message("/evening 20:30"), db)
 
         doc_ref.set.assert_called()

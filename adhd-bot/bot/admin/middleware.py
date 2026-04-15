@@ -9,8 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 

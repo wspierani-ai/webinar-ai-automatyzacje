@@ -12,7 +12,6 @@ Covers:
 from __future__ import annotations
 
 import os
-import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -434,7 +433,6 @@ class TestPollGoogleTasksEndpoint:
         from fastapi import FastAPI
         from httpx import AsyncClient, ASGITransport
         from bot.handlers.gtasks_polling_handler import router
-        from bot.models.task import Task, TaskState
 
         app = FastAPI()
         app.include_router(router)

@@ -1,9 +1,9 @@
 ---
 title: "ADHD Reminder Bot — Plan Implementacji"
 branch: feature/adhd-telegram-reminder-bot
-status: active
+status: completed
 created: 2026-04-09
-last_updated: 2026-04-09
+completed: 2026-04-09
 ---
 
 # ADHD Reminder Bot — Plan Implementacji

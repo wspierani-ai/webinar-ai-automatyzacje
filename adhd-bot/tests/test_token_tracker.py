@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -127,7 +126,7 @@ class TestFireAndForgetIntegration:
 
         with (
             patch("bot.services.ai_parser._get_gemini_client", return_value=mock_model),
-            patch("bot.services.ai_parser.token_tracker.record_usage", new_callable=AsyncMock) as mock_record,
+            patch("bot.services.ai_parser.token_tracker.record_usage", new_callable=AsyncMock),
             patch("bot.services.ai_parser._fire_and_forget_token_tracking") as mock_fire,
         ):
             from bot.services.ai_parser import parse_message

@@ -1,9 +1,9 @@
 ---
 title: "ADHD Reminder Bot — Zadania"
 branch: feature/adhd-telegram-reminder-bot
-status: active
+status: completed
 created: 2026-04-09
-last_updated: 2026-04-09
+completed: 2026-04-09
 ---
 
 # ADHD Reminder Bot — Zadania
@@ -534,3 +534,27 @@ last_updated: 2026-04-09
 - [x] Test: `GET /privacy` zwraca 200 z HTML
 - [ ] Weryfikacja: Po `/delete_my_data` brak dokumentów usera w żadnej kolekcji Firestore
 - [ ] Weryfikacja: `/privacy` dostępne publicznie bez autentykacji
+
+---
+
+## Do poprawy po review fazy 6
+
+### Cykl 1 — naprawione (8/8)
+- [x] 🔴 [blocking] **P1-1** GDPR token_usage subcollection — `_delete_token_usage_docs()` z enumeracja
+- [x] 🔴 [blocking] **P1-2** checklist_attach/create handlery dodane do `dispatch_callback`
+- [x] 🔴 [blocking] **P1-3** Firestore transaction w item callback (ale patrz P1-NEW ponizej)
+- [x] 🟠 [important] **P2-1** Template delete weryfikuje owner
+- [x] 🟠 [important] **P2-2** GDPR anuluje aktywne Cloud Tasks
+- [x] 🟠 [important] **P2-3** processed_updates usuniete z GDPR listy
+- [x] 🟠 [important] **P2-4** Toggle uncheck/check na checklist items
+- [x] 🟠 [important] **P2-5** except Exception zawezone do konkretnych typow
+
+### Cykl 2 — naprawione (1/1)
+- [x] 🔴 [blocking] **bot/handlers/checklist_callbacks.py:157-169** — Dodano `@async_transactional` na wewnetrznej funkcji `_run`; transakcja Firestore poprawnie commitowana (wzorzec identyczny z `bot/models/user.py:94-115`)
+
+### P3 carryover (niezmienione)
+- [ ] 🟡 [nit] **11 plikow** — `TELEGRAM_BASE_URL` zduplikowany w 11 plikach (carryover z Fazy 1, narastajacy)
+- [ ] 🟡 [nit] **3 pliki** — `_verify_oidc_token` nadal zduplikowana (carryover z Faz 1-4)
+- [ ] 🟡 [nit] **bot/services/checklist_ai.py:23-31** — `vertexai.init()` przy kazdym request (carryover)
+- [ ] 🟡 [nit] **5 plikow** — `_send_message` zduplikowana w 5 handlerach; wyciagnij do `bot/services/telegram.py`
+- [ ] 🟡 [nit] **templates/privacy_policy.html:89-93** — Brak adresu kontaktowego administratora (Art. 13 ust. 1 lit. a RODO)
