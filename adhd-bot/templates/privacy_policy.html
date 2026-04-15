@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polityka Prywatności — ADHD Reminder Bot</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 { color: #1a1a2e; }
+        h2 { color: #16213e; margin-top: 2em; }
+        .date { color: #666; font-size: 0.9em; }
+        ul { padding-left: 20px; }
+        li { margin-bottom: 8px; }
+        .contact { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-top: 2em; }
+    </style>
+</head>
+<body>
+    <h1>Polityka Prywatności</h1>
+    <p class="date">ADHD Reminder Bot — Ostatnia aktualizacja: 2026-04-09</p>
+
+    <h2>1. Administrator danych</h2>
+    <p>Administratorem Twoich danych osobowych jest operator bota ADHD Reminder Bot (dalej: "Administrator").</p>
+
+    <h2>2. Jakie dane zbieramy</h2>
+    <ul>
+        <li><strong>Identyfikator Telegram</strong> (telegram_user_id) — do identyfikacji konta</li>
+        <li><strong>Imie i nazwa uzytkownika Telegram</strong> — do personalizacji komunikacji</li>
+        <li><strong>Strefa czasowa</strong> — do poprawnego planowania przypomnien</li>
+        <li><strong>Tresc zadan i przypomnien</strong> — tworzone przez Ciebie zadania</li>
+        <li><strong>Checklista i szablony</strong> — tworzone przez Ciebie listy</li>
+        <li><strong>Dane subskrypcji Stripe</strong> — ID klienta i subskrypcji (nie przechowujemy danych karty)</li>
+        <li><strong>Tokeny Google</strong> (zaszyfrowane) — jesli polaczysz konto Google</li>
+    </ul>
+
+    <h2>3. W jakim celu przetwarzamy dane</h2>
+    <ul>
+        <li>Swiadczenie uslugi przypominania o zadaniach</li>
+        <li>Synchronizacja z Google Calendar i Google Tasks (opcjonalnie)</li>
+        <li>Obsluga platnosci i subskrypcji</li>
+        <li>Ulepszanie jakosci uslugi (anonimowe statystyki uzycia)</li>
+    </ul>
+
+    <h2>4. Podstawa prawna</h2>
+    <ul>
+        <li><strong>Art. 6 ust. 1 lit. a RODO</strong> — Twoja zgoda (wyrazana przez rozpoczecie korzystania z bota komenda /start)</li>
+        <li><strong>Art. 6 ust. 1 lit. b RODO</strong> — wykonanie umowy (swiadczenie uslugi)</li>
+        <li><strong>Art. 6 ust. 1 lit. f RODO</strong> — uzasadniony interes administratora (zapobieganie naduzyciom)</li>
+    </ul>
+
+    <h2>5. Jak dlugo przechowujemy dane</h2>
+    <ul>
+        <li><strong>Aktywne zadania</strong> — do momentu zakonczenia lub odrzucenia</li>
+        <li><strong>Ukonczone/odrzucone zadania</strong> — 30 dni od zakonczenia (automatyczne usuwanie przez TTL)</li>
+        <li><strong>Dane konta</strong> — do momentu usuniecia konta</li>
+    </ul>
+
+    <h2>6. Twoje prawa</h2>
+    <p>Zgodnie z RODO przysługują Ci nastepujace prawa:</p>
+    <ul>
+        <li><strong>Prawo dostepu</strong> — mozesz zapytac jakie dane przechowujemy</li>
+        <li><strong>Prawo do usunięcia</strong> — uzyj komendy <code>/delete_my_data</code> w bocie aby usunac wszystkie swoje dane</li>
+        <li><strong>Prawo do przenoszenia</strong> — mozesz zażądać eksportu danych</li>
+        <li><strong>Prawo do sprzeciwu</strong> — mozesz w dowolnym momencie zaprzestac korzystania z bota</li>
+    </ul>
+
+    <h2>7. Bezpieczenstwo danych</h2>
+    <ul>
+        <li>Tokeny Google sa szyfrowane algorytmem AES-256</li>
+        <li>Komunikacja z API odbywa sie przez HTTPS</li>
+        <li>Dane przechowywane sa w Google Cloud Firestore z kontrola dostepu</li>
+        <li>Sekrety przechowywane sa w Google Secret Manager</li>
+    </ul>
+
+    <h2>8. Podmioty trzecie</h2>
+    <ul>
+        <li><strong>Google Cloud Platform</strong> — hosting i przechowywanie danych</li>
+        <li><strong>Google Vertex AI (Gemini)</strong> — przetwarzanie jezyka naturalnego</li>
+        <li><strong>Stripe</strong> — obsluga platnosci</li>
+        <li><strong>Telegram</strong> — komunikacja z uzytkownikiem</li>
+    </ul>
+
+    <div class="contact">
+        <h2>9. Kontakt</h2>
+        <p>W sprawach dotyczacych ochrony danych osobowych mozesz skontaktowac sie z Administratorem
+        za pomoca komendy <code>/start</code> w bocie lub wysylajac wiadomosc na adres email podany w opisie bota na Telegramie.</p>
+    </div>
+</body>
+</html>

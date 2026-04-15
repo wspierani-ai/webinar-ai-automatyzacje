@@ -1,0 +1,26 @@
+# Cloud Scheduler job for daily cleanup of expired subscriptions and orphaned Cloud Tasks.
+# Deploy with:
+#   gcloud scheduler jobs create http adhd-bot-cleanup \
+#     --schedule="0 3 * * *" \
+#     --time-zone="Europe/Warsaw" \
+#     --uri="${CLOUD_RUN_SERVICE_URL}/internal/cleanup" \
+#     --http-method=POST \
+#     --oidc-service-account-email="cloud-scheduler-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+#     --oidc-token-audience="${CLOUD_RUN_SERVICE_URL}" \
+#     --location="europe-central2"
+
+name: adhd-bot-cleanup
+schedule: "0 3 * * *"
+timeZone: Europe/Warsaw
+httpTarget:
+  uri: "${CLOUD_RUN_SERVICE_URL}/internal/cleanup"
+  httpMethod: POST
+  headers:
+    Content-Type: application/json
+  oidcToken:
+    serviceAccountEmail: "cloud-scheduler-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+    audience: "${CLOUD_RUN_SERVICE_URL}"
+retryConfig:
+  retryCount: 3
+  minBackoffDuration: 5s
+  maxBackoffDuration: 60s

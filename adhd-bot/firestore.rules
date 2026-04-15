@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Deny all direct access — only Server SDK (service account) can read/write.
+    // All operations go through the Cloud Run application using Admin SDK.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
