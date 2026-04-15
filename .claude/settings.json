@@ -3,6 +3,18 @@
     "dev-browser@dev-browser-marketplace": true
   },
   "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$(date) hook fired\" >> /tmp/claude-hook-check.txt; f=$(jq -r '.tool_input.file_path // empty'); [[ \"$f\" == *.py ]] && ruff format \"$f\" 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
